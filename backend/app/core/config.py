@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     wecom_secret_key: str = ""
 
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/harness"
+    database_url: str = "sqlite:///./data/harness.db"
 
     # Milvus
     milvus_host: str = ""

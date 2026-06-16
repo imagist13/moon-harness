@@ -1,184 +1,80 @@
+import sqlite3
 import uuid
+from pathlib import Path
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
-
-from app.core.config import _env_settings
-
-# Database URL from config (default PostgreSQL)
-DATABASE_URL = _env_settings.database_url
-
-# If no database_url is set, use default PostgreSQL
-if not DATABASE_URL or DATABASE_URL.startswith("sqlite"):
-    DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/harness"
-
-engine = create_engine(
-    DATABASE_URL,
-    poolclass=QueuePool,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-class CursorAdapter:
-    """Adapter to make SQLAlchemy connection behave like sqlite3 cursor."""
-    
-    def __init__(self, conn):
-        self._conn = conn
-        self._result = None
-    
-    def execute(self, query, params=None):
-        # Handle SQLAlchemy text() objects
-        if hasattr(query, 'text'):
-            query = str(query)
-        
-        if params is None:
-            params = {}
-        
-        # Convert ? to :pN for positional params
-        if '?' in query and isinstance(params, (list, tuple)):
-            new_query = []
-            param_count = query.count('?')
-            new_params = {}
-            for i, p in enumerate(params):
-                new_params[f'p{i}'] = p
-            params = new_params
-            
-            parts = query.split('?')
-            for i, part in enumerate(parts):
-                new_query.append(part)
-                if i < param_count:
-                    new_query.append(f':p{i}')
-            query = ''.join(new_query)
-        
-        self._result = self._conn.execute(text(query), params)
-        return self
-    
-    def fetchone(self):
-        if self._result is None:
-            return None
-        row = self._result.fetchone()
-        if row is None:
-            return None
-        # Return as dict-like object for sqlite3 compatibility
-        return RowAdapter(row)
-    
-    def fetchall(self):
-        if self._result is None:
-            return []
-        return [RowAdapter(row) for row in self._result.fetchall()]
-    
-    def __iter__(self):
-        if self._result is None:
-            return iter([])
-        return iter(self._result)
-
-
-class RowAdapter:
-    """Adapter to make SQLAlchemy row behave like sqlite3.Row."""
-    
-    def __init__(self, row):
-        self._row = row
-        self._mapping = dict(row._mapping) if hasattr(row, '_mapping') else dict(row)
-    
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            return list(self._mapping.values())[key]
-        return self._mapping.get(key)
-    
-    def __getattr__(self, key):
-        return self._mapping.get(key)
-    
-    def keys(self):
-        return self._mapping.keys()
-    
-    def values(self):
-        return self._mapping.values()
-    
-    def items(self):
-        return self._mapping.items()
-    
-    def __iter__(self):
-        return iter(self._mapping)
-    
-    def __len__(self):
-        return len(self._mapping)
-    
-    def get(self, key, default=None):
-        return self._mapping.get(key, default)
-
-
-class ConnectionAdapter:
-    """Adapter to make SQLAlchemy connection return cursor with sqlite3-like interface."""
-    
-    def __init__(self, conn):
-        self._conn = conn
-    
-    def cursor(self):
-        return CursorAdapter(self._conn)
-    
-    def execute(self, query, params=None):
-        """Direct execute for compatibility."""
-        # Handle SQLAlchemy text() objects - pass them directly
-        if hasattr(query, 'text'):
-            self._conn.execute(query, params)
-            return self
-        return CursorAdapter(self._conn).execute(query, params)
-    
-    def commit(self):
-        self._conn.commit()
-    
-    def close(self):
-        self._conn.close()
-    
-    def rollback(self):
-        self._conn.rollback()
-    
-    def begin(self):
-        return self._conn.begin()
+DATA_DIR = Path("./data")
+DATA_DIR.mkdir(exist_ok=True)
+DB_PATH = DATA_DIR / "harness.db"
 
 
 def get_connection():
-    """Get a database connection (with sqlite3-like cursor interface)."""
-    return ConnectionAdapter(engine.connect())
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
-def get_db() -> Session:
-    """Get SQLAlchemy session (for dependency injection)."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def _pk_columns(cursor, table: str) -> List[str]:
+    """Return PK column names of `table` ordered by their PK index."""
+    cursor.execute(f"PRAGMA table_info({table})")
+    cols = [row for row in cursor.fetchall() if row[5] > 0]
+    cols.sort(key=lambda r: r[5])
+    return [r[1] for r in cols]
+
+
+def _drop_if_pk_mismatch(cursor, table: str, expected_pk: List[str]) -> bool:
+    """Drop `table` if it exists but its PK doesn't match expected. Returns True if dropped."""
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    if not cursor.fetchone():
+        return False
+    if _pk_columns(cursor, table) != expected_pk:
+        cursor.execute(f"DROP TABLE {table}")
+        return True
+    return False
+
+
+def _has_unique_index(cursor, table: str, cols: List[str]) -> bool:
+    """True if `table` has a unique index covering exactly `cols` (any order)."""
+    cursor.execute(f"PRAGMA index_list({table})")
+    for idx in cursor.fetchall():
+        if not idx[2]:  # not unique
+            continue
+        cursor.execute(f"PRAGMA index_info({idx[1]})")
+        idx_cols = sorted(c[2] for c in cursor.fetchall())
+        if idx_cols == sorted(cols):
+            return True
+    return False
+
+
+def _drop_if_unique_missing(cursor, table: str, cols: List[str]) -> bool:
+    """Drop `table` if it lacks a unique index covering `cols`. Returns True if dropped."""
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    if not cursor.fetchone():
+        return False
+    if not _has_unique_index(cursor, table, cols):
+        cursor.execute(f"DROP TABLE {table}")
+        return True
+    return False
 
 
 def init_db():
-    """Initialize database tables (PostgreSQL version)."""
     conn = get_connection()
-    trans = conn.begin()
+    cursor = conn.cursor()
 
-    # Enable UUID extension
-    conn.execute(text("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""))
-
-    # users table
-    conn.execute(text("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
             email TEXT UNIQUE,
             phone TEXT UNIQUE,
             hashed_password TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CHECK(email IS NOT NULL OR phone IS NOT NULL)
         )
-    """))
+    """)
 
-    # sessions table
-    conn.execute(text("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL DEFAULT 'New Session',
@@ -187,15 +83,13 @@ def init_db():
             mode TEXT NOT NULL DEFAULT 'agent' CHECK(mode IN ('agent', 'rag')),
             domain_id TEXT,
             user_id TEXT NOT NULL,
-            pinned INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
 
-    # messages table
-    conn.execute(text("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
             session_id TEXT NOT NULL,
@@ -204,17 +98,23 @@ def init_db():
             tool_calls TEXT,
             tool_call_id TEXT,
             user_id TEXT NOT NULL,
-            wecom_msgid TEXT,
-            skill_name TEXT,
-            reasoning_content TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
 
-    # tool_configs table
-    conn.execute(text("""
+    # Migrate tool_configs if schema is outdated (missing config column or wrong PK)
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tool_configs'")
+    if cursor.fetchone():
+        cursor.execute("PRAGMA table_info(tool_configs)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'config' not in columns:
+            cursor.execute("DROP TABLE tool_configs")
+        else:
+            _drop_if_pk_mismatch(cursor, 'tool_configs', ['name', 'user_id'])
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS tool_configs (
             name TEXT NOT NULL,
             type TEXT NOT NULL DEFAULT 'agent',
@@ -229,10 +129,44 @@ def init_db():
             PRIMARY KEY (name, user_id),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
 
-    # conversation_summaries table
-    conn.execute(text("""
+    # Migrate: rename 'python' type to 'agent'
+    cursor.execute("UPDATE tool_configs SET type = 'agent' WHERE type = 'python'")
+
+    # Clean up old built-in tools
+    old_tool_names = [
+        'get_current_time', 'calculator', 'get_weather',
+        'detect_language', 'get_supported_languages',
+        'translate_text', 'summarize_text',
+    ]
+    for name in old_tool_names:
+        cursor.execute("DELETE FROM tool_configs WHERE name = ?", (name,))
+
+    # Remove execute_code built-in tool (moved to user-managed tools)
+    cursor.execute("DELETE FROM tool_configs WHERE name = ?", ('execute_code',))
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at)
+    """)
+
+    # Migrate: add wecom_msgid column to messages if missing
+    cursor.execute("PRAGMA table_info(messages)")
+    msg_columns = [row[1] for row in cursor.fetchall()]
+    if 'wecom_msgid' not in msg_columns:
+        cursor.execute("ALTER TABLE messages ADD COLUMN wecom_msgid TEXT")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_wecom_msgid ON messages(wecom_msgid)")
+
+    # Migrate: add skill_name column to messages if missing
+    if 'skill_name' not in msg_columns:
+        cursor.execute("ALTER TABLE messages ADD COLUMN skill_name TEXT")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_skill_name ON messages(skill_name)")
+
+    # Migrate: add reasoning_content column to messages if missing
+    if 'reasoning_content' not in msg_columns:
+        cursor.execute("ALTER TABLE messages ADD COLUMN reasoning_content TEXT")
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS conversation_summaries (
             id TEXT PRIMARY KEY,
             session_id TEXT NOT NULL,
@@ -243,10 +177,16 @@ def init_db():
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
 
-    # wecom_config table
-    conn.execute(text("""
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_summaries_session ON conversation_summaries(session_id, created_at)
+    """)
+
+    # wecom_config — drop if missing UNIQUE(user_id)
+    _drop_if_unique_missing(cursor, 'wecom_config', ['user_id'])
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS wecom_config (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL UNIQUE,
@@ -256,10 +196,12 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
 
-    # wecom_sessions table
-    conn.execute(text("""
+    # wecom_sessions — drop if UNIQUE doesn't cover (wecom_user_id, chat_type, user_id)
+    _drop_if_unique_missing(cursor, 'wecom_sessions', ['wecom_user_id', 'chat_type', 'user_id'])
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS wecom_sessions (
             id TEXT PRIMARY KEY,
             wecom_user_id TEXT NOT NULL,
@@ -271,10 +213,16 @@ def init_db():
             UNIQUE(wecom_user_id, chat_type, user_id),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
 
-    # rag_domains table
-    conn.execute(text("""
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_wecom_sessions_lookup ON wecom_sessions(wecom_user_id, chat_type, user_id)
+    """)
+
+    # RAG domains table — drop if UNIQUE doesn't cover (name, user_id)
+    _drop_if_unique_missing(cursor, 'rag_domains', ['name', 'user_id'])
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS rag_domains (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -285,10 +233,10 @@ def init_db():
             UNIQUE(name, user_id),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
 
-    # rag_documents table
-    conn.execute(text("""
+    # RAG documents metadata table
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS rag_documents (
             id TEXT PRIMARY KEY,
             domain_id TEXT NOT NULL,
@@ -307,10 +255,15 @@ def init_db():
             FOREIGN KEY (domain_id) REFERENCES rag_domains(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_rag_docs_status ON rag_documents(status)
+    """)
 
-    # system_settings table
-    conn.execute(text("""
+    # system_settings table — drop if PK isn't the new composite (user_id, key)
+    _drop_if_pk_mismatch(cursor, 'system_settings', ['user_id', 'key'])
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS system_settings (
             user_id TEXT NOT NULL,
             key TEXT NOT NULL,
@@ -319,18 +272,77 @@ def init_db():
             PRIMARY KEY (user_id, key),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """))
+    """)
 
-    # Create indexes
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_messages_wecom_msgid ON messages(wecom_msgid)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_messages_skill_name ON messages(skill_name)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_summaries_session ON conversation_summaries(session_id, created_at)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_wecom_sessions_lookup ON wecom_sessions(wecom_user_id, chat_type, user_id)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rag_docs_status ON rag_documents(status)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rag_docs_domain ON rag_documents(domain_id)"))
+    # ========== Migrations for existing DBs ==========
 
-    trans.commit()
+    # sessions
+    cursor.execute("PRAGMA table_info(sessions)")
+    session_cols = [row[1] for row in cursor.fetchall()]
+    if 'mode' not in session_cols:
+        cursor.execute("ALTER TABLE sessions ADD COLUMN mode TEXT NOT NULL DEFAULT 'agent' CHECK(mode IN ('agent', 'rag'))")
+    if 'domain_id' not in session_cols:
+        cursor.execute("ALTER TABLE sessions ADD COLUMN domain_id TEXT")
+    if 'pinned' not in session_cols:
+        cursor.execute("ALTER TABLE sessions ADD COLUMN pinned INTEGER DEFAULT 0")
+    if 'user_id' not in session_cols:
+        cursor.execute("ALTER TABLE sessions ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+
+    # messages: add user_id
+    cursor.execute("PRAGMA table_info(messages)")
+    msg_cols = [row[1] for row in cursor.fetchall()]
+    if 'user_id' not in msg_cols:
+        cursor.execute("ALTER TABLE messages ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+
+    # tool_configs: add user_id
+    cursor.execute("PRAGMA table_info(tool_configs)")
+    tc_cols = [row[1] for row in cursor.fetchall()]
+    if 'user_id' not in tc_cols:
+        cursor.execute("ALTER TABLE tool_configs ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+
+    # conversation_summaries: add user_id
+    cursor.execute("PRAGMA table_info(conversation_summaries)")
+    cs_cols = [row[1] for row in cursor.fetchall()]
+    if 'user_id' not in cs_cols:
+        cursor.execute("ALTER TABLE conversation_summaries ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+
+    # wecom_config: add user_id
+    cursor.execute("PRAGMA table_info(wecom_config)")
+    wc_cols = [row[1] for row in cursor.fetchall()]
+    if 'user_id' not in wc_cols:
+        cursor.execute("ALTER TABLE wecom_config ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+
+    # wecom_sessions: add user_id
+    cursor.execute("PRAGMA table_info(wecom_sessions)")
+    ws_cols = [row[1] for row in cursor.fetchall()]
+    if 'user_id' not in ws_cols:
+        cursor.execute("ALTER TABLE wecom_sessions ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+
+    # rag_domains: add user_id
+    cursor.execute("PRAGMA table_info(rag_domains)")
+    rd_cols = [row[1] for row in cursor.fetchall()]
+    if 'user_id' not in rd_cols:
+        cursor.execute("ALTER TABLE rag_domains ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+
+    # rag_documents: add user_id
+    cursor.execute("PRAGMA table_info(rag_documents)")
+    rdoc_cols = [row[1] for row in cursor.fetchall()]
+    if 'user_id' not in rdoc_cols:
+        cursor.execute("ALTER TABLE rag_documents ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+    if 'domain_id' not in rdoc_cols:
+        cursor.execute("ALTER TABLE rag_documents ADD COLUMN domain_id TEXT")
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_rag_docs_domain ON rag_documents(domain_id)
+    """)
+
+    # system_settings: add user_id
+    cursor.execute("PRAGMA table_info(system_settings)")
+    ss_cols = [row[1] for row in cursor.fetchall()]
+    if 'user_id' not in ss_cols:
+        cursor.execute("ALTER TABLE system_settings ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE")
+
+    conn.commit()
     conn.close()
 
 
@@ -338,11 +350,12 @@ def init_db():
 
 def insert_summary(session_id: str, user_id: str, content: str, message_count_before: int) -> str:
     conn = get_connection()
+    cursor = conn.cursor()
     summary_id = str(uuid.uuid4())
-    now = datetime.utcnow()
-    conn.execute(
-        text("INSERT INTO conversation_summaries (id, session_id, content, message_count_before, user_id, created_at) VALUES (:id, :session_id, :content, :message_count_before, :user_id, :created_at)"),
-        {"id": summary_id, "session_id": session_id, "content": content, "message_count_before": message_count_before, "user_id": user_id, "created_at": now}
+    now = datetime.utcnow().isoformat()
+    cursor.execute(
+        "INSERT INTO conversation_summaries (id, session_id, content, message_count_before, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (summary_id, session_id, content, message_count_before, user_id, now)
     )
     conn.commit()
     conn.close()
@@ -351,54 +364,52 @@ def insert_summary(session_id: str, user_id: str, content: str, message_count_be
 
 def get_latest_summary(session_id: str) -> Optional[dict]:
     conn = get_connection()
-    result = conn.execute(
-        text("SELECT * FROM conversation_summaries WHERE session_id = :session_id ORDER BY created_at DESC LIMIT 1"),
-        {"session_id": session_id}
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM conversation_summaries WHERE session_id = ? ORDER BY created_at DESC LIMIT 1",
+        (session_id,)
     )
-    row = result.fetchone()
+    row = cursor.fetchone()
     conn.close()
-    return dict(row._mapping) if row else None
+    return dict(row) if row else None
 
 
 def get_messages_after_summary(session_id: str, summary: Optional[dict]) -> List[dict]:
     conn = get_connection()
+    cursor = conn.cursor()
     if summary:
-        result = conn.execute(
-            text("SELECT * FROM messages WHERE session_id = :session_id AND created_at > :created_at ORDER BY created_at ASC"),
-            {"session_id": session_id, "created_at": summary["created_at"]}
+        cursor.execute(
+            "SELECT * FROM messages WHERE session_id = ? AND created_at > ? ORDER BY created_at ASC",
+            (session_id, summary["created_at"])
         )
     else:
-        result = conn.execute(
-            text("SELECT * FROM messages WHERE session_id = :session_id ORDER BY created_at ASC"),
-            {"session_id": session_id}
+        cursor.execute(
+            "SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,)
         )
-    rows = result.fetchall()
+    rows = cursor.fetchall()
     conn.close()
-    return [dict(row._mapping) for row in rows]
+    return [dict(row) for row in rows]
 
 
 def get_wecom_config(user_id: str) -> Optional[dict]:
     conn = get_connection()
-    result = conn.execute(
-        text("SELECT * FROM wecom_config WHERE user_id = :user_id"),
-        {"user_id": user_id}
-    )
-    row = result.fetchone()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM wecom_config WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
     conn.close()
-    return dict(row._mapping) if row else None
+    return dict(row) if row else None
 
 
 def set_wecom_config(user_id: str, bot_id: str, secret_encrypted: str) -> None:
     conn = get_connection()
+    cursor = conn.cursor()
     config_id = str(uuid.uuid4())
-    now = datetime.utcnow()
-    conn.execute(
-        text("""
-            INSERT INTO wecom_config (id, user_id, bot_id, secret_encrypted, bound_at, created_at) 
-            VALUES (:id, :user_id, :bot_id, :secret_encrypted, :bound_at, :created_at)
-            ON CONFLICT(user_id) DO UPDATE SET bot_id=excluded.bot_id, secret_encrypted=excluded.secret_encrypted, bound_at=excluded.bound_at
-        """),
-        {"id": config_id, "user_id": user_id, "bot_id": bot_id, "secret_encrypted": secret_encrypted, "bound_at": now, "created_at": now}
+    now = datetime.utcnow().isoformat()
+    cursor.execute(
+        "INSERT INTO wecom_config (id, user_id, bot_id, secret_encrypted, bound_at, created_at) VALUES (?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET bot_id=excluded.bot_id, secret_encrypted=excluded.secret_encrypted, bound_at=excluded.bound_at",
+        (config_id, user_id, bot_id, secret_encrypted, now, now)
     )
     conn.commit()
     conn.close()
@@ -406,30 +417,33 @@ def set_wecom_config(user_id: str, bot_id: str, secret_encrypted: str) -> None:
 
 def delete_wecom_config(user_id: str) -> None:
     conn = get_connection()
-    conn.execute(text("DELETE FROM wecom_config WHERE user_id = :user_id"), {"user_id": user_id})
-    conn.execute(text("DELETE FROM wecom_sessions WHERE user_id = :user_id"), {"user_id": user_id})
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM wecom_config WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM wecom_sessions WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
 
 
 def get_wecom_session(wecom_user_id: str, chat_type: str, user_id: str) -> Optional[dict]:
     conn = get_connection()
-    result = conn.execute(
-        text("SELECT * FROM wecom_sessions WHERE wecom_user_id = :wecom_user_id AND chat_type = :chat_type AND user_id = :user_id"),
-        {"wecom_user_id": wecom_user_id, "chat_type": chat_type, "user_id": user_id}
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM wecom_sessions WHERE wecom_user_id = ? AND chat_type = ? AND user_id = ?",
+        (wecom_user_id, chat_type, user_id)
     )
-    row = result.fetchone()
+    row = cursor.fetchone()
     conn.close()
-    return dict(row._mapping) if row else None
+    return dict(row) if row else None
 
 
 def create_wecom_session(wecom_user_id: str, chat_type: str, session_id: str, user_id: str) -> str:
     conn = get_connection()
+    cursor = conn.cursor()
     ws_id = str(uuid.uuid4())
-    now = datetime.utcnow()
-    conn.execute(
-        text("INSERT INTO wecom_sessions (id, wecom_user_id, chat_type, session_id, user_id, created_at, updated_at) VALUES (:id, :wecom_user_id, :chat_type, :session_id, :user_id, :created_at, :updated_at)"),
-        {"id": ws_id, "wecom_user_id": wecom_user_id, "chat_type": chat_type, "session_id": session_id, "user_id": user_id, "created_at": now, "updated_at": now}
+    now = datetime.utcnow().isoformat()
+    cursor.execute(
+        "INSERT INTO wecom_sessions (id, wecom_user_id, chat_type, session_id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (ws_id, wecom_user_id, chat_type, session_id, user_id, now, now)
     )
     conn.commit()
     conn.close()
@@ -438,10 +452,11 @@ def create_wecom_session(wecom_user_id: str, chat_type: str, session_id: str, us
 
 def update_wecom_session_time(wecom_user_id: str, chat_type: str, user_id: str) -> None:
     conn = get_connection()
-    now = datetime.utcnow()
-    conn.execute(
-        text("UPDATE wecom_sessions SET updated_at = :updated_at WHERE wecom_user_id = :wecom_user_id AND chat_type = :chat_type AND user_id = :user_id"),
-        {"updated_at": now, "wecom_user_id": wecom_user_id, "chat_type": chat_type, "user_id": user_id}
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cursor.execute(
+        "UPDATE wecom_sessions SET updated_at = ? WHERE wecom_user_id = ? AND chat_type = ? AND user_id = ?",
+        (now, wecom_user_id, chat_type, user_id)
     )
     conn.commit()
     conn.close()
@@ -449,24 +464,21 @@ def update_wecom_session_time(wecom_user_id: str, chat_type: str, user_id: str) 
 
 def get_system_setting(user_id: str, key: str) -> Optional[str]:
     conn = get_connection()
-    result = conn.execute(
-        text("SELECT value FROM system_settings WHERE user_id = :user_id AND key = :key"),
-        {"user_id": user_id, "key": key}
-    )
-    row = result.fetchone()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM system_settings WHERE user_id = ? AND key = ?", (user_id, key))
+    row = cursor.fetchone()
     conn.close()
-    return row[0] if row else None
+    return row["value"] if row else None
 
 
 def set_system_setting(user_id: str, key: str, value: str) -> None:
     conn = get_connection()
-    now = datetime.utcnow()
-    conn.execute(
-        text("""
-            INSERT INTO system_settings (user_id, key, value, updated_at) VALUES (:user_id, :key, :value, :updated_at)
-            ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
-        """),
-        {"user_id": user_id, "key": key, "value": value, "updated_at": now}
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cursor.execute(
+        "INSERT INTO system_settings (user_id, key, value, updated_at) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+        (user_id, key, value, now)
     )
     conn.commit()
     conn.close()
@@ -474,20 +486,16 @@ def set_system_setting(user_id: str, key: str, value: str) -> None:
 
 def get_all_system_settings(user_id: str) -> dict:
     conn = get_connection()
-    result = conn.execute(
-        text("SELECT key, value FROM system_settings WHERE user_id = :user_id"),
-        {"user_id": user_id}
-    )
-    rows = result.fetchall()
+    cursor = conn.cursor()
+    cursor.execute("SELECT key, value FROM system_settings WHERE user_id = ?", (user_id,))
+    rows = cursor.fetchall()
     conn.close()
-    return {row[0]: row[1] for row in rows}
+    return {row["key"]: row["value"] for row in rows}
 
 
 def delete_system_setting(user_id: str, key: str) -> None:
     conn = get_connection()
-    conn.execute(
-        text("DELETE FROM system_settings WHERE user_id = :user_id AND key = :key"),
-        {"user_id": user_id, "key": key}
-    )
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM system_settings WHERE user_id = ? AND key = ?", (user_id, key))
     conn.commit()
     conn.close()

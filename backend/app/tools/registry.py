@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from typing import Dict, Callable, Optional
 from app.db.database import get_connection, init_db
 from app.tools.api_executor import execute_api_tool
@@ -30,7 +31,8 @@ class ToolRegistry:
             conn = get_connection()
             cursor = conn.cursor()
 
-            # Public tools (user_id IS NULL): skip if already exists
+            # Public tools (user_id IS NULL): skip if already exists to avoid
+            # duplicate rows since SQLite composite PK treats NULLs as distinct.
             if user_id is None:
                 cursor.execute(
                     "SELECT 1 FROM tool_configs WHERE name = ? AND user_id IS NULL",
@@ -41,18 +43,12 @@ class ToolRegistry:
                     return
 
             cursor.execute(
-                """
-                INSERT INTO tool_configs (name, type, description, enabled, parameters, config, user_id, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT (name) DO UPDATE SET
-                type = excluded.type, description = excluded.description, enabled = excluded.enabled,
-                parameters = excluded.parameters, config = excluded.config, updated_at = CURRENT_TIMESTAMP
-                """,
+                "INSERT OR REPLACE INTO tool_configs (name, type, description, enabled, parameters, config, user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
                 (name, tool_type, description, 1, json.dumps(parameters), json.dumps(config) if config else None, user_id)
             )
             conn.commit()
             conn.close()
-        except Exception:
+        except sqlite3.OperationalError:
             init_db()
             conn = get_connection()
             cursor = conn.cursor()
@@ -67,13 +63,7 @@ class ToolRegistry:
                     return
 
             cursor.execute(
-                """
-                INSERT INTO tool_configs (name, type, description, enabled, parameters, config, user_id, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT (name) DO UPDATE SET
-                type = excluded.type, description = excluded.description, enabled = excluded.enabled,
-                parameters = excluded.parameters, config = excluded.config, updated_at = CURRENT_TIMESTAMP
-                """,
+                "INSERT OR REPLACE INTO tool_configs (name, type, description, enabled, parameters, config, user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
                 (name, tool_type, description, 1, json.dumps(parameters), json.dumps(config) if config else None, user_id)
             )
             conn.commit()
@@ -87,13 +77,7 @@ class ToolRegistry:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            """
-            INSERT INTO tool_configs (name, type, description, enabled, parameters, config, user_id, updated_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT (name) DO UPDATE SET
-            type = excluded.type, description = excluded.description, enabled = excluded.enabled,
-            parameters = excluded.parameters, config = excluded.config, updated_at = CURRENT_TIMESTAMP
-            """,
+            "INSERT OR REPLACE INTO tool_configs (name, type, description, enabled, parameters, config, user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
             (name, tool_type, description, 1 if enabled else 0, json.dumps(parameters) if parameters else None, json.dumps(config) if config else None, user_id)
         )
         conn.commit()
@@ -166,7 +150,7 @@ class ToolRegistry:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM tool_configs WHERE name = ? AND (user_id = ? OR user_id IS NULL) ORDER BY user_id LIMIT 1",
+            "SELECT * FROM tool_configs WHERE name = ? AND (user_id = ? OR user_id IS NULL) ORDER BY user_id NULLS LAST LIMIT 1",
             (name, user_id)
         )
         row = cursor.fetchone()
@@ -311,7 +295,7 @@ class ToolRegistry:
         cursor = conn.cursor()
         if user_id:
             cursor.execute(
-                "SELECT enabled FROM tool_configs WHERE name = ? AND (user_id = ? OR user_id IS NULL) ORDER BY user_id LIMIT 1",
+                "SELECT enabled FROM tool_configs WHERE name = ? AND (user_id = ? OR user_id IS NULL) ORDER BY user_id NULLS LAST LIMIT 1",
                 (name, user_id)
             )
         else:
