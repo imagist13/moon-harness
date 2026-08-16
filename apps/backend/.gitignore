@@ -1,0 +1,51 @@
+# Runtime data
+data/
+workspaces/
+logs/
+tmp/
+example_datas/
+.skills/
+
+# Configuration (use config.example.toml as template)
+config.toml
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Vendor packages (if managed separately)
+vendor/*/dist/
+vendor/*/build/
+
+# sqlite-vec 预编译二进制由 prepare-runtime 按需下载，不提交到仓库
+vendor/sqlite-vec/**/*.so
+vendor/sqlite-vec/**/*.dylib
+vendor/sqlite-vec/**/*.dll
+vendor/sqlite-vec/**/*.tar.gz
+vendor/sqlite-vec/**/.download/
+
+# Skill 本地配置（含密钥，不提交）
+apps/backend/skills/store/**/config.json

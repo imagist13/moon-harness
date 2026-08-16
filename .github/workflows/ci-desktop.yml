@@ -1,0 +1,199 @@
+name: Desktop Build & Pre-release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options: [beta, stable]
+        default: beta
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+            script: dist:ci:linux
+            files: |
+              apps/desktop/dist/*.AppImage
+              apps/desktop/dist/*.deb
+              apps/desktop/dist/*.zip
+          - os: macos-latest
+            target: mac
+            script: dist:ci:mac
+            files: |
+              apps/desktop/dist/*.dmg
+              apps/desktop/dist/*.zip
+          # macos-13 已于 2025-12-04 退役，x86_64 构建改用 macos-15-intel
+          # 详见 https://github.blog/changelog/2025-09-19-github-actions-macos-13-runner-image-is-closing-down/
+          - os: macos-15-intel
+            target: mac-x64
+            script: dist:ci:mac-x64
+            files: |
+              apps/desktop/dist/*.dmg
+              apps/desktop/dist/*.zip
+          - os: windows-latest
+            target: win
+            script: dist:ci:win
+            files: |
+              apps/desktop/dist/*.exe
+              apps/desktop/dist/*.zip
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Sync version from tag
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          # 从 tag (如 v0.4.9) 提取版本号 (0.4.9)
+          export VERSION="${TAG#v}"
+          # pyproject.toml 版本必须是 PEP 440，fork-test/beta 后缀只能给 package.json
+          export BASE_VERSION="${VERSION%%-*}"
+          echo "Syncing version to $VERSION (package.json) / $BASE_VERSION (pyproject.toml)"
+          # 更新 desktop package.json
+          cd apps/desktop
+          node -e "const fs=require('fs'); const p=require('./package.json'); p.version='$VERSION'; fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n')"
+          cd ../web
+          node -e "const fs=require('fs'); const p=require('./package.json'); p.version='$VERSION'; fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n')"
+          cd ../backend
+          # 用 Python 替换 pyproject.toml 中的 version，避免 sed 跨平台差异
+          python3 -c "
+          import os, re
+          version = os.environ['BASE_VERSION']
+          with open('pyproject.toml', 'r') as f:
+              content = f.read()
+          content = re.sub(r'^version = \".*?\"', f'version = \"{version}\"', content, count=1, flags=re.MULTILINE)
+          with open('pyproject.toml', 'w') as f:
+              f.write(content)
+          "
+
+      - name: Setup Node.js (web)
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Build web dist
+        run: |
+          cd apps/web && npm ci && npm run build
+
+      - name: Setup Node.js (desktop)
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Install desktop deps
+        run: cd apps/desktop && npm ci
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "apps/backend/uv.lock"
+
+      - name: Install python-build-standalone
+        run: uv python install 3.12
+
+      - name: Install backend deps
+        run: |
+          cd apps/backend
+          # 使用 uv 托管的 python-build-standalone 创建 venv，
+          # 避免使用 actions/setup-python 安装的官方 Python（dylib 路径硬编码，不可移植）
+          uv venv --python 3.12
+          uv sync --frozen
+
+      - name: Prepare runtime
+        run: cd apps/desktop && npm run prepare:runtime
+
+      - name: Remove python3.exe shim (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $shim = "apps/desktop/.dist/backend/.venv/python/python3.exe"
+          if (Test-Path $shim) {
+            Remove-Item -Force $shim
+            Write-Host "Removed python3.exe shim"
+          }
+
+      - name: Build desktop (${{ matrix.target }})
+        run: cd apps/desktop && npm run ${{ matrix.script }}
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.target == 'mac' && 'false' || '' }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  release:
+    needs: build-desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve release tag
+        id: resolve_tag
+        shell: bash
+        run: |
+          RELEASE_TYPE="${{ github.event.inputs.release_type || 'beta' }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$(node -p "require('./apps/desktop/package.json').version")
+            if [ "$RELEASE_TYPE" = "stable" ]; then
+              TAG="v${VERSION}"
+            else
+              TAG="v${VERSION}-beta.${GITHUB_RUN_NUMBER}"
+            fi
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG (type: $RELEASE_TYPE)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: desktop-*
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.resolve_tag.outputs.tag }}
+          name: "${{ steps.resolve_tag.outputs.release_type == 'stable' && 'Release' || 'Beta' }} ${{ steps.resolve_tag.outputs.tag }}"
+          draft: false
+          prerelease: ${{ steps.resolve_tag.outputs.release_type != 'stable' }}
+          generate_release_notes: true
+          files: artifacts/**

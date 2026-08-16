@@ -1,0 +1,204 @@
+"""
+Vendor 二进制依赖管理。
+
+用于本地开发场景：直接 uvicorn 启动 backend 时，自动检查并补齐
+uv / fnm / sqlite-vec 等 vendor 二进制。
+
+桌面版打包时由 apps/desktop/scripts/prepare-runtime.cjs 负责下载；
+此处为纯后端开发提供一致的自动兜底能力。
+"""
+
+from __future__ import annotations
+
+import logging
+import platform
+import subprocess
+import sys
+from pathlib import Path
+
+from app.core.subprocess_utils import subprocess_kwargs
+
+logger = logging.getLogger(__name__)
+
+
+def _get_platform_slug() -> str | None:
+    """将 Python 的 platform 信息映射到项目内部使用的 platform slug。"""
+    system = platform.system()
+    machine = platform.machine()
+
+    if system == "Darwin":
+        if machine == "arm64":
+            return "darwin-arm64"
+        if machine in ("x86_64", "AMD64"):
+            return "darwin-x64"
+    elif system == "Linux":
+        if machine == "arm64":
+            return "linux-arm64"
+        if machine in ("x86_64", "AMD64"):
+            return "linux-x64"
+    elif system == "Windows":
+        if machine in ("x86_64", "AMD64", "x64"):
+            return "win-x64"
+
+    return None
+
+
+def _repo_root() -> Path:
+    """仓库根目录。"""
+    # app/core/vendor_binaries.py -> app/core -> app -> backend -> apps -> AIASys
+    return Path(__file__).resolve().parents[4]
+
+
+def _backend_root() -> Path:
+    """后端运行时根目录（即 BASE_DIR）。
+
+    app/core/vendor_binaries.py -> app/core -> app -> backend
+    在桌面版打包布局中即为 resources/backend/。
+    """
+    return Path(__file__).resolve().parents[2]
+
+
+def _binary_paths(platform_slug: str) -> dict[str, list[Path]]:
+    """返回当前平台下需要检查的 vendor 二进制候选路径列表。
+
+    支持三种目录布局：
+    - 源码布局：repo/apps/backend/vendor/...
+    - 桌面版 prepare-runtime 输出布局：.dist/backend/vendor/...
+    - 桌面版安装布局：resources/backend/vendor/...
+    """
+    repo = _repo_root()
+    backend_root = _backend_root()
+    # desktop 下载脚本对 uv 使用 windows-x64 / darwin-x64 等完整系统名，
+    # 对 node/fnm 使用 win-x64 / darwin-arm64 等项目 slug。
+    uv_subdir = {
+        "win-x64": "windows-x64",
+        "linux-x64": "linux-x64",
+        "linux-arm64": "linux-arm64",
+        "darwin-x64": "darwin-x64",
+        "darwin-arm64": "darwin-arm64",
+    }.get(platform_slug, platform_slug)
+    exe_ext = ".exe" if platform_slug == "win-x64" else ""
+    return {
+        "uv": [
+            repo / "apps" / "backend" / "vendor" / "uv" / uv_subdir / f"uv{exe_ext}",
+            backend_root / "vendor" / "uv" / uv_subdir / f"uv{exe_ext}",
+        ],
+        "fnm": [
+            repo / "apps" / "backend" / "vendor" / "node" / platform_slug / f"fnm{exe_ext}",
+            backend_root / "vendor" / "node" / platform_slug / f"fnm{exe_ext}",
+        ],
+        "sqlite-vec": [
+            repo
+            / "apps"
+            / "backend"
+            / "vendor"
+            / "sqlite-vec"
+            / _sqlite_vec_subdir(platform_slug)
+            / _sqlite_vec_filename(platform_slug),
+            backend_root
+            / "vendor"
+            / "sqlite-vec"
+            / _sqlite_vec_subdir(platform_slug)
+            / _sqlite_vec_filename(platform_slug),
+        ],
+    }
+
+
+def _sqlite_vec_subdir(platform_slug: str) -> str:
+    mapping = {
+        "linux-x64": "linux-x86_64",
+        "linux-arm64": "linux-x86_64",
+        "darwin-x64": "macos-x86_64",
+        "darwin-arm64": "macos-aarch64",
+        "win-x64": "windows-x86_64",
+    }
+    return mapping.get(platform_slug, "")
+
+
+def _sqlite_vec_filename(platform_slug: str) -> str:
+    mapping = {
+        "linux-x64": "vec0.so",
+        "linux-arm64": "vec0.so",
+        "darwin-x64": "vec0.dylib",
+        "darwin-arm64": "vec0.dylib",
+        "win-x64": "vec0.dll",
+    }
+    return mapping.get(platform_slug, "")
+
+
+def _missing_binaries(platform_slug: str) -> list[str]:
+    """返回缺失的 vendor 二进制名称列表。"""
+    paths = _binary_paths(platform_slug)
+    return [name for name, candidates in paths.items() if not any(p.exists() for p in candidates)]
+
+
+def ensure_vendor_binaries() -> None:
+    """
+    检查并补齐当前平台所需的 vendor 二进制。
+
+    如果全部存在则直接返回；如果存在缺失，调用下载脚本统一下载。
+    下载失败时记录警告，不阻塞服务启动（部分功能可能不可用）。
+    """
+    platform_slug = _get_platform_slug()
+    if platform_slug is None:
+        logger.warning(
+            "无法识别当前平台 (%s %s)，跳过 vendor 二进制检查",
+            platform.system(),
+            platform.machine(),
+        )
+        return
+
+    missing = _missing_binaries(platform_slug)
+    if not missing:
+        logger.debug("vendor 二进制已齐全: %s", platform_slug)
+        return
+
+    logger.info(
+        "检测到 vendor 二进制缺失: %s，尝试自动下载 (%s)",
+        ", ".join(missing),
+        platform_slug,
+    )
+
+    script_candidates = [
+        _repo_root() / "apps" / "backend" / "scripts" / "download_vendor_binaries.py",
+        _repo_root() / "scripts" / "download_vendor_binaries.py",
+    ]
+    script = next((p for p in script_candidates if p.exists()), None)
+    if script is None:
+        logger.debug(
+            "打包/生产环境中未找到 vendor 下载脚本，跳过自动下载（期望由 prepare-runtime 预先嵌入）"
+        )
+        return
+
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script)],
+            cwd=_repo_root(),
+            capture_output=True,
+            check=False,
+            timeout=60,
+            **subprocess_kwargs(),
+        )
+        if result.returncode != 0:
+            from app.core.encoding_utils import smart_decode
+
+            stderr = smart_decode(result.stderr) if result.stderr else ""
+            stdout = smart_decode(result.stdout) if result.stdout else ""
+            logger.warning(
+                "vendor 二进制自动下载失败 (exit %s):\n%s",
+                result.returncode,
+                stderr or stdout,
+            )
+            return
+
+        # 下载后再检查一次
+        still_missing = _missing_binaries(platform_slug)
+        if still_missing:
+            logger.warning(
+                "下载脚本执行后仍缺失: %s",
+                ", ".join(still_missing),
+            )
+        else:
+            logger.info("vendor 二进制自动下载完成")
+    except Exception as e:
+        logger.warning("vendor 二进制自动下载异常: %s", e)
