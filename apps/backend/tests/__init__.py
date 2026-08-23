@@ -1,3 +1,1 @@
-"""
-AIASys Backend Tests
-"""
+"""Selftests package."""

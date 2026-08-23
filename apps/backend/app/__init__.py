@@ -1,1 +1,0 @@
-"""AIASys backend application package."""
