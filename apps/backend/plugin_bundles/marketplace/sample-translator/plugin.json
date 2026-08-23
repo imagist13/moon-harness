@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "sample-translator",
+  "version": "1.0.0",
+  "description": "一个内置示例插件，演示插件包结构：打包一个翻译技能。可作为编写自有插件的参考模板。"
+}
