@@ -1,0 +1,364 @@
+"""Executable release regressions for CE edition boundaries."""
+
+from __future__ import annotations
+
+import asyncio
+import inspect
+from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import inspect as inspect_database
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+
+@pytest.fixture(scope="module", autouse=True)
+def initialized_ce_database():
+    from core.db.engine import SessionLocal, init_db
+    from core.services.local_user_service import ensure_ce_default_admin
+
+    init_db()
+    db = SessionLocal()
+    try:
+        user_id, _ = ensure_ce_default_admin(db)
+    finally:
+        db.close()
+    return user_id
+
+
+def test_ce_login_ticket_exchange_and_session_check(initialized_ce_database):
+    from api.app import app
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/login",
+            data={"username": "admin", "password": "admin", "redirect": "/"},
+            follow_redirects=False,
+        )
+        assert login.status_code == 303, login.text
+        ticket = parse_qs(urlparse(login.headers["location"]).query)["ticket"][0]
+
+        exchange = client.post("/v1/auth/ticket/exchange", json={"code": ticket})
+        assert exchange.status_code == 200, exchange.text
+        assert exchange.json()["data"]["user_id"] == initialized_ce_database
+
+        session = client.get("/v1/auth/session/check")
+        assert session.status_code == 200, session.text
+        assert session.json()["data"]["username"] == "admin"
+
+
+def test_ce_api_key_crud_is_reachable_from_personal_settings(initialized_ce_database):
+    from api.app import app
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/login",
+            data={"username": "admin", "password": "admin", "redirect": "/"},
+            follow_redirects=False,
+        )
+        assert login.status_code == 303, login.text
+        ticket = parse_qs(urlparse(login.headers["location"]).query)["ticket"][0]
+        exchange = client.post("/v1/auth/ticket/exchange", json={"code": ticket})
+        assert exchange.status_code == 200, exchange.text
+
+        empty_or_existing = client.get("/v1/me/api-keys")
+        assert empty_or_existing.status_code == 200, empty_or_existing.text
+
+        created = client.post(
+            "/v1/me/api-keys",
+            json={
+                "name": "desktop-test",
+                "expires_in_days": 30,
+                # The shared frontend always sends this field. CE intentionally
+                # ignores it because it has no enterprise model gateway.
+                "for_gateway": False,
+            },
+        )
+        assert created.status_code == 201, created.text
+        created_data = created.json()["data"]
+        key_id = created_data["id"]
+        assert created_data["api_key"].startswith("sk-jx-")
+
+        revealed = client.get(f"/v1/me/api-keys/{key_id}/reveal")
+        assert revealed.status_code == 200, revealed.text
+        assert revealed.json()["data"]["api_key"] == created_data["api_key"]
+
+        disabled = client.patch(f"/v1/me/api-keys/{key_id}", json={"enabled": False})
+        assert disabled.status_code == 200, disabled.text
+        assert disabled.json()["data"]["enabled"] is False
+
+        revoked = client.delete(f"/v1/me/api-keys/{key_id}")
+        assert revoked.status_code == 200, revoked.text
+
+
+def test_ce_mcp_marketplace_is_registered_and_returns_items(initialized_ce_database):
+    from api.app import app
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/login",
+            data={"username": "admin", "password": "admin", "redirect": "/"},
+            follow_redirects=False,
+        )
+        assert login.status_code == 303, login.text
+        ticket = parse_qs(urlparse(login.headers["location"]).query)["ticket"][0]
+        exchange = client.post("/v1/auth/ticket/exchange", json={"code": ticket})
+        assert exchange.status_code == 200, exchange.text
+
+        response = client.get("/v1/mcp-market/items")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]
+
+
+def test_ce_registers_all_local_auth_routes():
+    from api.app import app
+
+    operations = {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
+    actual = {
+        (method.upper(), path)
+        for path, path_item in app.openapi()["paths"].items()
+        for method in path_item
+        if method in operations
+    }
+
+    assert {
+        ("POST", "/v1/auth/ticket/exchange"),
+        ("GET", "/v1/auth/session/check"),
+        ("POST", "/v1/auth/desktop/handoff"),
+        ("POST", "/v1/auth/desktop/redeem"),
+        ("POST", "/v1/auth/logout"),
+    } <= actual
+
+
+def test_ce_registers_personal_evolution_routes():
+    """The evolution evidence plane is a CE capability, and it must be mounted.
+
+    When this router is missing, the first-run wizard's
+    ``PATCH /v1/evolution/prefs`` falls through to the desktop local server's
+    GET-only SPA catch-all and surfaces as a bare 405 — the whole「启动进化」
+    step becomes a dead end.
+    """
+    from api.app import app
+
+    operations = {"get", "post", "put", "patch", "delete"}
+    actual = {
+        (method.upper(), path)
+        for path, path_item in app.openapi()["paths"].items()
+        for method in path_item
+        if method in operations
+    }
+
+    assert {
+        ("GET", "/v1/evolution/prefs"),
+        ("PATCH", "/v1/evolution/prefs"),
+        ("GET", "/v1/evolution/settings"),
+        ("PATCH", "/v1/evolution/settings"),
+        ("GET", "/v1/evolution/my-candidates"),
+        ("POST", "/v1/evolution/my-cycle"),
+    } <= actual
+
+
+def test_ce_self_service_skill_and_mcp_do_not_import_admin_routes(
+    initialized_ce_database,
+    monkeypatch,
+):
+    from api.routes.v1 import me_capabilities
+    from core.db.engine import SessionLocal
+    from core.db.models import AdminMcpServer, AdminSkill
+
+    assert "api.routes.v1.admin_" not in inspect.getsource(me_capabilities)
+
+    async def probe_ok(row, db):
+        row.tools_json = [{"name": "example_tool", "description": "", "inputSchema": {}}]
+        return True, ""
+
+    async def validate_ok(url, *, allow_private_network, require_https):
+        assert allow_private_network is False
+        assert require_https is False
+
+    monkeypatch.setattr(me_capabilities, "probe_mcp_connectivity", probe_ok)
+    monkeypatch.setattr(me_capabilities, "validate_remote_mcp_url", validate_ok)
+    user = SimpleNamespace(user_id=initialized_ce_database)
+    db: Session = SessionLocal()
+    try:
+        skill_body = me_capabilities.CreateUserSkillRequest(
+            name="ce-release-skill",
+            display_name="CE release skill",
+            description="Checks the physical edition boundary",
+            instructions="Return a concise result.",
+        )
+        asyncio.run(me_capabilities.create_my_skill(skill_body, user, db))
+        skill = db.query(AdminSkill).filter_by(skill_id="ce-release-skill").one()
+        assert skill.owner_user_id == initialized_ce_database
+
+        mcp_body = me_capabilities.CreateUserMcpRequest(
+            display_name="CE release MCP",
+            url="https://example.invalid/mcp",
+        )
+        asyncio.run(me_capabilities.create_my_mcp_server(mcp_body, user, db))
+        mcp = (
+            db.query(AdminMcpServer)
+            .filter(AdminMcpServer.owner_user_id == initialized_ce_database)
+            .one()
+        )
+        assert mcp.tools_json[0]["name"] == "example_tool"
+    finally:
+        db.close()
+
+
+def test_ce_schema_reconcile_repairs_legacy_sqlite_columns(tmp_path):
+    from core.db.edition_tables import ce_create_all, ce_reconcile_schema
+    from core.db.models import AdminSkill, ChatSession, ModelProvider
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    database = tmp_path / "legacy-ce.db"
+    engine = create_engine(f"sqlite:///{database}")
+    ce_create_all(engine)
+
+    missing = {
+        "admin_mcp_servers": ["source_plugin"],
+        "admin_skills": ["dep_status", "source_plugin"],
+        "chat_sessions": ["channel_id", "external_conversation_id"],
+        "model_providers": ["provider", "gateway_group", "weight", "priority"],
+        "tool_call_logs": ["sandbox_id"],
+        "user_agents": ["plugin_ids", "source_market_slug"],
+        "user_api_keys": ["key_enc"],
+    }
+    with engine.begin() as connection:
+        for table_name, columns in missing.items():
+            for index in inspect_database(connection).get_indexes(table_name):
+                connection.execute(text(f'DROP INDEX IF EXISTS "{index["name"]}"'))
+            for column in columns:
+                connection.execute(text(f'ALTER TABLE "{table_name}" DROP COLUMN "{column}"'))
+        connection.execute(
+            text(
+                "INSERT INTO admin_skills "
+                "(skill_id, skill_content, display_name, description, version, is_enabled) "
+                "VALUES ('legacy-skill', '---\\nname: legacy-skill\\n---\\n', "
+                "'Legacy', 'Legacy row', '1.0.0', 1)"
+            )
+        )
+
+    report = ce_reconcile_schema(engine)
+    assert set(report["columns"]) == {
+        f"{table}.{column}" for table, columns in missing.items() for column in columns
+    }
+
+    session = sessionmaker(bind=engine)()
+    try:
+        assert (
+            session.query(AdminSkill).filter_by(skill_id="legacy-skill").one().dep_status == "ready"
+        )
+        assert session.query(ModelProvider).first() is None
+        assert session.query(ChatSession).first() is None
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_ce_mcp_market_risk_migration_preserves_existing_notices(tmp_path):
+    import importlib.util
+    import json
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import create_engine
+
+    migration_path = (
+        Path(__file__).resolve().parents[2]
+        / "alembic"
+        / "versions"
+        / "ce_0008_drop_mcp_market_risk_level.py"
+    )
+    spec = importlib.util.spec_from_file_location("ce_0008_migration", migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'ce-marketplace-upgrade.db'}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE mcp_market_versions ("
+                "id VARCHAR(64) PRIMARY KEY, "
+                "risk_level VARCHAR(16) NOT NULL DEFAULT 'low', "
+                "risk_report JSON)"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE TABLE mcp_market_submissions ("
+                "id VARCHAR(64) PRIMARY KEY, "
+                "risk_level VARCHAR(16) NOT NULL DEFAULT 'low', "
+                "risk_report JSON, "
+                "listing_notice JSON)"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO mcp_market_versions (id, risk_level, risk_report) "
+                "VALUES ('v1', 'high', '{\"docs_url\":\"https://example.test/version\"}')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO mcp_market_submissions "
+                "(id, risk_level, risk_report, listing_notice) "
+                "VALUES ('s1', 'medium', "
+                "'{\"docs_url\":\"https://example.test/submission\"}', NULL)"
+            )
+        )
+
+        context = MigrationContext.configure(connection)
+        with Operations.context(context):
+            migration.upgrade()
+
+        expected_urls = {
+            "mcp_market_versions": "https://example.test/version",
+            "mcp_market_submissions": "https://example.test/submission",
+        }
+        for table, expected_url in expected_urls.items():
+            columns = {
+                column["name"] for column in inspect_database(connection).get_columns(table)
+            }
+            assert "listing_notice" in columns
+            assert "risk_level" not in columns
+            assert "risk_report" not in columns
+            notice = connection.execute(
+                text(f'SELECT listing_notice FROM "{table}"')
+            ).scalar_one()
+            if isinstance(notice, str):
+                notice = json.loads(notice)
+            assert notice["docs_url"] == expected_url
+
+    engine.dispose()
+
+
+def test_ce_startup_seams_and_compose_defaults_are_ce_safe():
+    from core.services.edition_startup import (
+        bootstrap_edition_plugins,
+        create_distillation_scheduler,
+        recover_datasource_sidecars,
+        recover_persona_distill_jobs,
+    )
+
+    assert asyncio.run(recover_datasource_sidecars()) == {}
+    assert bootstrap_edition_plugins(None) == ()
+    assert create_distillation_scheduler() is None
+    assert recover_persona_distill_jobs() == 0
+
+    root = Path(__file__).resolve().parents[4]
+    compose = (root / "docker-compose.yml").read_text(encoding="utf-8")
+    for expected in (
+        "${JX_EDITION:-ce}",
+        "${AUTH_MODE:-session}",
+        "${SSO_LOGIN_MODE:-local}",
+        "${SSO_EXCHANGE_MODE:-local}",
+        "${VITE_EDITION:-ce}",
+    ):
+        assert expected in compose
