@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HugAgentOS</title>
+    <title>LuminOS</title>
     <script>
       // 防闪烁：在任何 CSS/JS 加载前同步落主题，避免深色用户首屏闪白。
       // key 与解析规则和 src/theme.ts 保持一致（非 light/dark 的值一律按 system）；
       // 分享预览页锁定浅色。主树 src/frontend/index.html 有逐字相同的一份，三处同步改。
       ;(function () {
         try {
-          var mode = localStorage.getItem('hugagent_theme_mode')
+          var mode = localStorage.getItem('luminos_theme_mode')
           var dark =
             mode === 'dark' ||
             (mode !== 'light' &&

@@ -36,8 +36,8 @@ type PersonalScope = { kind: 'personal'; folderId: string | null };
 const PAGE_SIZE = 20;
 const AUTOMATION_FAVORITE_CHAT_PREFIX = 'automation:';
 const AUTOMATION_FAVORITE_ITEM_PREFIX = 'favorite-automation:';
-const MY_SPACE_TAB_STORAGE_KEY = 'hugagent_my_space_active_tab';
-const MY_SPACE_RAIL_STORAGE_KEY = 'hugagent_my_space_rail_collapsed';
+const MY_SPACE_TAB_STORAGE_KEY = 'luminos_my_space_active_tab';
+const MY_SPACE_RAIL_STORAGE_KEY = 'luminos_my_space_rail_collapsed';
 const VALID_MY_SPACE_TABS: readonly MySpaceTab[] = [
   'assets',
   'kb',

@@ -1393,7 +1393,7 @@ export function useStreaming(
     // 过去复制标签页/多开时两个标签页同时 follow 同一 run，各自用不同的
     // placeholderTs 建气泡，互相覆盖 localStorage，产生重复/半截气泡与
     // "回答无对应问题"（问题17）。Web Locks 随标签页关闭自动释放。
-    const runLockName = `hugagent_run_follow_${active.run_id}`;
+    const runLockName = `luminos_run_follow_${active.run_id}`;
     const activeRun = active;
     const doFollowRun = () => followActiveRun(chatId, activeRun, uid);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

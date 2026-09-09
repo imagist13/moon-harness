@@ -89,7 +89,7 @@ export default function App() {
   usePageConfigPolling();
   const pageConfig = usePageConfigAll();
   const panelTitles = pageConfig.navigation.panel_titles;
-  const brandName = usePageConfig('branding.product_name', 'HugAgentOS');
+  const brandName = usePageConfig('branding.product_name', 'LuminOS');
   const recommendBannerText = usePageConfig('texts.recommend_banner_text', '');
   const { authUser, authChecking, authExpiredUrl, setAuthUser } = useAuthStore();
   const {

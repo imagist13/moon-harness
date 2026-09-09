@@ -230,7 +230,7 @@ export function useChatActions(effectiveApiUrl: string) {
     const title = target.title || t('对话记录');
     const dateStr = formatDateKey(new Date());
     const safeTitle = toSafeFileName(title) || t('对话记录');
-    const brandName = usePageConfigStore.getState().config.branding.product_name || 'HugAgentOS';
+    const brandName = usePageConfigStore.getState().config.branding.product_name || 'LuminOS';
     triggerPdfDownload(`【${brandName}】${safeTitle}_${dateStr}.pdf`, title, messages, target.createdAt);
     message.success(t('对话已导出为 PDF'));
   }

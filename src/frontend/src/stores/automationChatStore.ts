@@ -5,7 +5,7 @@ import { useChatStore } from './chatStore';
 import { useCatalogStore } from './catalogStore';
 import { t } from '../i18n';
 
-const AUTOMATION_SIDEBAR_PREFS_KEY = 'hugagent_automation_sidebar_prefs_v1';
+const AUTOMATION_SIDEBAR_PREFS_KEY = 'luminos_automation_sidebar_prefs_v1';
 
 interface AutomationSidebarPref {
   pinned?: boolean;

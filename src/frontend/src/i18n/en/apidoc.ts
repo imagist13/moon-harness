@@ -59,7 +59,7 @@ export const APIDOC_DICT: Record<string, string> = {
   '请选择接口查看详情': 'Select an endpoint to view details',
 
   // ApiDocApp
-  'HugAgentOS — 接口文档': 'HugAgentOS — API Docs',
+  'LuminOS — 接口文档': 'LuminOS — API Docs',
   '返回 Config': 'Back to Config',
   '打开 Swagger': 'Open Swagger',
   '打开 ReDoc': 'Open ReDoc',

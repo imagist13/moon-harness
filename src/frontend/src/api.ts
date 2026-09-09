@@ -1,5 +1,5 @@
 /**
- * API Client for HugAgentOS Backend.
+ * API Client for LuminOS Backend.
  *
  * Uses v1 unified response envelope.
  */
@@ -129,14 +129,14 @@ export interface HealthResponse {
 export const getApiUrl = () => import.meta.env.VITE_API_BASE_URL || '/api';
 
 // ── Hybrid routing（桌面双模式：云端为主 + 本机执行本地项目）─────────────────
-// 桌面壳的 Rust 反代按请求头分流：带 `x-hugagent-target: local` → 本机执行面
+// 桌面壳的 Rust 反代按请求头分流：带 `x-luminos-target: local` → 本机执行面
 // （127.0.0.1:32101），否则 → 云端。前端唯一的「本地」判定真源是项目
 // kind==='local'；聊天则继承其绑定项目。此处维护两个注册表（api.ts 内自洽，
 // 不引 store，避免模块环）。仅 provision_mode==='dual' 时生效；web 上恒为空。
 
-// 头名必须用全小写技术标识：大写 HugAgentOS 会被 CE 品牌变换改写成 HugAgentOS，
+// 头名必须用全小写技术标识：大写 LuminOS 会被 CE 品牌变换改写成 LuminOS，
 // 与桌面壳 Rust 反代匹配的小写常量（proxy.rs TARGET_HEADER）对不上，路由整体失效。
-export const LOCAL_TARGET_HEADER = 'x-hugagent-target';
+export const LOCAL_TARGET_HEADER = 'x-luminos-target';
 
 let _hybridDual = false;
 /** 由 deploymentModeStore.refresh() 在探测到桌面双模式后开启。 */
@@ -319,7 +319,7 @@ function throwIfSessionExpired(status: number, payload: unknown, localTarget = f
 
 /** 云端每次让能力缓存失效都会换一个变更号，随响应头下发。桌面双模式下发现它变了
  *  就同步一次本机能力——这是「不轮询」下发现云端改动的信号，不产生额外请求。 */
-const CAPABILITY_EPOCH_HEADER = 'x-hugagent-capability-epoch';
+const CAPABILITY_EPOCH_HEADER = 'x-luminos-capability-epoch';
 let _capabilityEpoch: string | null = null;
 let _capabilitySyncTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -1989,7 +1989,7 @@ export async function getMarketplaceSkillDetail(slug: string): Promise<Marketpla
 }
 
 // ── Desktop capability store（桌面双模式：本机执行面的能力来源）────────────
-// 全部走本机后端（x-hugagent-target: local）。云端能力中心负责「账号里有什么」；
+// 全部走本机后端（x-luminos-target: local）。云端能力中心负责「账号里有什么」；
 // 这里只回答「这台机器上这条能力是本机的还是云端的」——没有任何手动管理动作：
 // 登录时同步一次就全部准备好，云端能力被改动时前端调一次 syncDeviceCapabilities。
 
@@ -2417,7 +2417,7 @@ export async function exchangeSsoCredential(
 
 /** Desktop plan B: exchange the current cookie session for a one-time handoff ticket.
  * Called only on the system-browser side after a successful login — once the ticket is
- * obtained the browser jumps to `hugagent://auth/callback?ticket=` to wake the desktop
+ * obtained the browser jumps to `luminos://auth/callback?ticket=` to wake the desktop
  * app, which then uses the ticket against the backend directly to exchange it for the
  * real session token. */
 export async function desktopHandoff(): Promise<string> {

@@ -123,7 +123,7 @@ async function refreshContextAfterCompaction(
  *  用户的停止意图是终局的：登记下来，任何重挂路径都不许再跟随这个 run。写
  *  localStorage 是为了多窗口 / 刷新后同样生效（用户就是在两个窗口之间来回切时
  *  撞上这个问题的）。 */
-const CANCELLED_RUNS_KEY = 'hugagent_ui_cancelled_runs_v1';
+const CANCELLED_RUNS_KEY = 'luminos_ui_cancelled_runs_v1';
 const CANCELLED_RUNS_MAX = 100;
 const _cancelledRuns = new Set<string>();
 

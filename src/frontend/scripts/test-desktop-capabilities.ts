@@ -49,7 +49,7 @@ async function run() {
     await putDeviceSkillFile('skill:local:report', '# Local draft', 'rev-before');
     await setDeviceCapabilityEnabled('skill:cloud:report', false);
     await setDeviceManagedMcpEnabled('p_' + 'a'.repeat(32), 'tool/with space', false);
-    for (const req of requests) assert.equal(new Headers(req.init?.headers).get('x-hugagent-target'), 'local');
+    for (const req of requests) assert.equal(new Headers(req.init?.headers).get('x-luminos-target'), 'local');
     assert.match(requests[1].url, /my%20tool$/);
     assert.deepEqual(JSON.parse(String(requests[1].init?.body)).expected_digest, 'digest-a');
     assert.match(requests[2].url, /expected_generation=8/);

@@ -17,7 +17,7 @@ import { mergeGroupOrder, reorderGroupSequence } from '../utils/sidebarOrder';
  * （换设备跟随账号）。服务端一旦读到就是真源。
  */
 
-const SIDEBAR_ORDER_KEY = 'hugagent_ui_sidebar_order_v1';
+const SIDEBAR_ORDER_KEY = 'luminos_ui_sidebar_order_v1';
 /** 与后端 SIDEBAR_ORDER_MAX 对齐，避免本地攒出后端会截断的长尾。 */
 const MAX_ORDER_LEN = 500;
 

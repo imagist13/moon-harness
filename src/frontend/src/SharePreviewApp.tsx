@@ -34,7 +34,7 @@ function formatShareExpiry(value?: string | null) {
 
 export default function SharePreviewApp() {
   usePageConfigPolling();
-  const brandName = usePageConfig('branding.product_name', 'HugAgentOS');
+  const brandName = usePageConfig('branding.product_name', 'LuminOS');
 
   const shareId = useMemo(() => new URLSearchParams(window.location.search).get('share') || '', []);
   const [loading, setLoading] = useState(true);

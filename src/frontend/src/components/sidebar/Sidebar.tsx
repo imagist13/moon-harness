@@ -50,7 +50,7 @@ const { Sider } = Layout;
 
 // 导航分组折叠偏好（key = LAYOUT_ITEMS 的 key）。与「侧栏是否收起」同属浏览器级 UI 偏好，
 // 不按账号隔离；读写复用 storage.ts 的通用 JSON 偏好 helper。
-const NAV_COLLAPSED_KEY = 'hugagent_ui_nav_collapsed_v1';
+const NAV_COLLAPSED_KEY = 'luminos_ui_nav_collapsed_v1';
 const loadCollapsedNavGroups = () => loadJsonPref<Record<string, boolean>>(NAV_COLLAPSED_KEY, {});
 
 // Chat list item add/remove animation: enter 0.22s float-up expand / exit 0.18s height collapse (items below smoothly reposition via layout).
@@ -99,8 +99,8 @@ export function Sidebar({
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // ── Page config (text and branding configurable via the admin console) ──
-  const cfgProductName = usePageConfig('branding.product_name', 'HugAgentOS');
-  const cfgProductSub = usePageConfig('branding.product_subtitle', 'HugAgentOS AI 智能助手');
+  const cfgProductName = usePageConfig('branding.product_name', 'LuminOS');
+  const cfgProductSub = usePageConfig('branding.product_subtitle', 'LuminOS AI 智能助手');
   const cfgLogoUrl = usePageConfig('branding.logo_url', '/home/logo.svg');
   const cfgBtnNewChat = usePageConfig('texts.btn_new_chat', '新建对话');
   const cfgEmptyState = usePageConfig('texts.sidebar_empty_state', '暂无对话记录');

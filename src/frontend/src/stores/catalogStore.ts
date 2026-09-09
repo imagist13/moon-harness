@@ -4,9 +4,9 @@ import { getCatalog, updateCatalogItem } from '../api';
 import { loadCatalog, saveCatalog, removeLocal } from '../storage';
 import { loadActiveProjectId } from './projectSession';
 
-const PANEL_STORAGE_KEY = 'hugagent_active_panel';
+const PANEL_STORAGE_KEY = 'luminos_active_panel';
 // Keep in sync with authStore.LOGIN_LANDING_KEY (inlined to avoid a circular import).
-const LOGIN_LANDING_KEY = 'hugagent_login_landing';
+const LOGIN_LANDING_KEY = 'luminos_login_landing';
 
 // 可以从 localStorage 恢复的面板。'skills' / 'agents' / 'mcp' 已并入能力中心的二级导航、
 // 不再是独立面板，故不在此列——残留的旧值会退回 'chat'。
@@ -29,12 +29,12 @@ const VALID_PANELS: readonly PanelKey[] = [
  * 顺带把能力中心停在哪个二级 Tab 也一并记住：以前只记面板不记 Tab，在「能力中心 →
  * 插件」按刷新会掉回智能体。
  */
-const ABILITY_TAB_STORAGE_KEY = 'hugagent_ability_tab';
+const ABILITY_TAB_STORAGE_KEY = 'luminos_ability_tab';
 const VALID_ABILITY_TABS: readonly AbilityTabKey[] = ['agents', 'skills', 'mcp', 'plugins'];
 
 /** 知识库的公共/私有分档。原本是 CatalogPanel 内部的 Tab 状态，现在同一份状态还要被
  *  「我的空间」二级栏的两个二级项驱动，所以提到 store 里由两边共读。 */
-const KB_TAB_STORAGE_KEY = 'hugagent_kb_active_tab';
+const KB_TAB_STORAGE_KEY = 'luminos_kb_active_tab';
 
 function readSession(key: string): string | null {
   if (typeof window === 'undefined') return null;

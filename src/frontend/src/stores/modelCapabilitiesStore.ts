@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { getMainModelCapabilities, type ModelCapabilities } from '../api';
 import { writeLocal, removeLocal } from '../storage';
 
-const SELECTED_MODEL_PROVIDER_KEY = 'hugagent_selected_model_provider_id';
+const SELECTED_MODEL_PROVIDER_KEY = 'luminos_selected_model_provider_id';
 
 function loadSelectedProviderId(): string | null {
   if (typeof window === 'undefined') return null;

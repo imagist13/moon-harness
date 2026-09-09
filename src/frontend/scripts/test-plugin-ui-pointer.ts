@@ -134,7 +134,7 @@ function check(name: string, cond: boolean, extra?: unknown) {
     resolvePath(process.cwd(), '../backend/plugin_bundles/marketplace/industry-knowledge-center/plugin.json'),
     'utf-8',
   ));
-  const canvas = manifest.extensions['org.hugagent'].ui.contributes.canvas_views[0];
+  const canvas = manifest.extensions['org.luminos'].ui.contributes.canvas_views[0];
   const map = canvas.map as Record<string, unknown>;
 
   // 生产端真实形状的最小样例（含 result 信封，模拟工具输出原文）

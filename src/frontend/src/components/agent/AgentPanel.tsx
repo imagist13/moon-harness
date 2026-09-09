@@ -38,7 +38,7 @@ import { t } from '../../i18n';
 import { DeviceCapabilityBadge } from '../catalog/DeviceCapabilityBadge';
 import { AgentIcon } from './AgentIcon';
 
-const AGENT_DETAIL_ID_KEY = 'hugagent_agent_detail_id';
+const AGENT_DETAIL_ID_KEY = 'luminos_agent_detail_id';
 
 interface AgentDetailItem {
   label: string;

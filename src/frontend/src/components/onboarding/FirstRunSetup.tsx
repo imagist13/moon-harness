@@ -57,7 +57,7 @@ import {
 
 const { Paragraph, Text, Title } = Typography;
 
-const STEP_STORAGE_PREFIX = 'hugagent_ce_setup_step_';
+const STEP_STORAGE_PREFIX = 'luminos_ce_setup_step_';
 
 interface FirstRunSetupProps {
   user: AuthUser;
@@ -141,7 +141,7 @@ function configuredSecret(value: string | null | undefined): boolean {
 }
 
 export function FirstRunSetup({ user, onComplete }: FirstRunSetupProps) {
-  const brandName = usePageConfig('branding.product_name', 'HugAgentOS');
+  const brandName = usePageConfig('branding.product_name', 'LuminOS');
   const doLogout = useAuthStore((state) => state.doLogout);
   const loggingOut = useAuthStore((state) => state.loggingOut);
   const [step, setStep] = useState(() => safeStoredStep(user.user_id));
@@ -989,7 +989,7 @@ export function FirstRunSetup({ user, onComplete }: FirstRunSetupProps) {
     ['让智能体访问实时信息', '配置搜索服务后，天气、新闻和公开资料查询会更加完整。'],
     ['决定如何读取复杂文档', '外部解析服务适合 PDF、扫描件和包含公式的文档。'],
     ['选择需要的智能增强', '你可以控制是否跨对话记忆、是否让系统从你的用法中自我进化，以及是否执行领域本体核验。'],
-    ['一切就绪', '完成初始化后，你将进入 HugAgentOS 工作台。'],
+    ['一切就绪', '完成初始化后，你将进入 LuminOS 工作台。'],
   ];
 
   if (loading) {
@@ -1017,7 +1017,7 @@ export function FirstRunSetup({ user, onComplete }: FirstRunSetupProps) {
         <div className="jx-firstRun-brand">
           <img
             className="jx-firstRun-wordmark"
-            src="/home/hugagentos-logo.png"
+            src="/home/luminos-logo.png"
             alt={brandName}
           />
           <span className="jx-firstRun-editionLabel">Community Edition</span>

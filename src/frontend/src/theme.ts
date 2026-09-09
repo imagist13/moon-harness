@@ -10,7 +10,7 @@ import { writeLocal } from './storage';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-const THEME_STORAGE_KEY = 'hugagent_theme_mode';
+const THEME_STORAGE_KEY = 'luminos_theme_mode';
 
 export function loadThemeMode(): ThemeMode {
   if (typeof window === 'undefined') return 'system';

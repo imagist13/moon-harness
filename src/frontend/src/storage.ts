@@ -1,7 +1,7 @@
 import type { Catalog, ChatMessage, ChatStore } from './types';
 
-export const STORAGE_KEY = 'hugagent_ui_chat_history_v2';
-export const ENABLE_KEY = 'hugagent_ui_enabled_catalog_v1';
+export const STORAGE_KEY = 'luminos_ui_chat_history_v2';
+export const ENABLE_KEY = 'luminos_ui_enabled_catalog_v1';
 
 export const defaultCatalog: Catalog = {
   skills: [],
@@ -37,10 +37,10 @@ export function purgeLegacyUnscopedKeys() {
   if (typeof window === 'undefined') return;
   const legacyKeys = [
     STORAGE_KEY,
-    'hugagent_current_chat_id',
-    'hugagent_pending_scroll_message_ts',
-    'hugagent_share_records_cache',
-    'hugagent_automation_sidebar_prefs_v1',
+    'luminos_current_chat_id',
+    'luminos_pending_scroll_message_ts',
+    'luminos_share_records_cache',
+    'luminos_automation_sidebar_prefs_v1',
   ];
   for (const k of legacyKeys) {
     try { window.localStorage.removeItem(k); } catch { /* ignore */ }
@@ -122,7 +122,7 @@ export function registerDeletedChatId(id: string) {
  *  一写盘就按 updatedAt 平手把绑定又贴了回去。侧边栏于是拿 chat.projectName
  *  兜底造出一个"已删除项目"的分组，新对话就挂在一个并不存在的项目下。
  *  记成跨窗口可见的黑名单后，任何一侧合并时都会把这些绑定清干净。 */
-const UNBOUND_PROJECTS_KEY = 'hugagent_ui_unbound_projects_v1';
+const UNBOUND_PROJECTS_KEY = 'luminos_ui_unbound_projects_v1';
 const UNBOUND_PROJECTS_MAX = 200;
 // 只保留"当前账号"的那一份：换账号时整体丢弃，别把 A 的已删项目带到 B 的会话上。
 let unboundProjectOwner: string | null = null;
@@ -444,7 +444,7 @@ export function nowId(prefix = 'chat') {
  *  登记只增不减：这段对话一旦真发了消息，它就有了本地消息、也会进
  *  backendSessionIds，isLocalDraftChat 的另外两个条件不再成立，登记项自然失效。
  *  按账号隔离并封顶，避免长期积累。 */
-const DRAFT_CHAT_IDS_KEY = 'hugagent_ui_draft_chat_ids_v1';
+const DRAFT_CHAT_IDS_KEY = 'luminos_ui_draft_chat_ids_v1';
 const DRAFT_CHAT_IDS_MAX = 50;
 
 function readDraftChatIds(userId: string | null | undefined): string[] {

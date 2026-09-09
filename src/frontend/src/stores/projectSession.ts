@@ -3,7 +3,7 @@
  * 面板恢复到 project_detail 时必须能拿回项目 id，否则主区域没东西可渲染。
  * 与面板一样按标签页存 sessionStorage，多窗口互不串台。
  */
-const ACTIVE_PROJECT_STORAGE_KEY = 'hugagent_active_project';
+const ACTIVE_PROJECT_STORAGE_KEY = 'luminos_active_project';
 
 export function loadActiveProjectId(): string | null {
   if (typeof window === 'undefined') return null;

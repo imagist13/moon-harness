@@ -12,7 +12,7 @@ import { formatDateTime } from '../../utils/date';
 import { getSiteVisibilityTag } from '../../editionSiteVisibility';
 import '../../styles/sites.css';
 
-const SHARE_RECORDS_CACHE_KEY = 'hugagent_share_records_cache';
+const SHARE_RECORDS_CACHE_KEY = 'luminos_share_records_cache';
 
 /** Published sites are also a kind of outbound share link — show a compact list at the top of the share records page. */
 function SiteShareSection() {

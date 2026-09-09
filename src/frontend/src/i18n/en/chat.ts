@@ -286,7 +286,7 @@ export const CHAT_DICT: Record<string, string> = {
   '15天': '15 days',
   '3个月': '3 months',
   '长期': 'Permanent',
-  '你好，我是 HugAgentOS': 'Hello, I\'m HugAgentOS',
+  '你好，我是 LuminOS': 'Hello, I\'m LuminOS',
   '基于 AI 能力的场景化智能工作平台': 'AI-powered intelligent work platform for business scenarios',
   '专业智能体': 'Specialized agent',
   '向{name}提问...': 'Ask {name}...',

@@ -110,7 +110,7 @@ export function triggerPdfDownload(filename: string, chatTitle: string, messages
     .then((pdf: any) => {
       const pageCount = pdf.internal.getNumberOfPages();
       const pageWidth = pdf.internal.pageSize.getWidth();
-      const headerText = `${t('HugAgentOS')}(${formatChatTimestamp(chatTimestamp)})`;
+      const headerText = `${t('LuminOS')}(${formatChatTimestamp(chatTimestamp)})`;
       const headerImage = createPdfHeaderImage(headerText);
       const headerWidth = 98;
       const headerHeight = 6.86;

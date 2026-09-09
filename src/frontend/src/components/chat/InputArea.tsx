@@ -373,7 +373,7 @@ export function InputArea({
   }, [refreshDeploymentMode]);
 
   // 项目下拉里的「新建本地项目」：跳壳的文件夹选择器（/__desktop/pick-local-folder），
-  // 壳选完把路径以 hugagent:local-folder 事件回抛到页面；这里建项目、刷新列表并
+  // 壳选完把路径以 luminos:local-folder 事件回抛到页面；这里建项目、刷新列表并
   // 把当前对话直接绑定到新项目上（项目页 composer 不注册，避免双实例重复建）。
   useEffect(() => {
     if (projectComposer || !isDesktopShell || !localCapable) return;
@@ -391,8 +391,8 @@ export function InputArea({
           alert('新建本地项目失败：' + (err?.message || err));
         });
     };
-    window.addEventListener('hugagent:local-folder', onFolder as EventListener);
-    return () => window.removeEventListener('hugagent:local-folder', onFolder as EventListener);
+    window.addEventListener('luminos:local-folder', onFolder as EventListener);
+    return () => window.removeEventListener('luminos:local-folder', onFolder as EventListener);
   }, [projectComposer, isDesktopShell, localCapable]);
 
   const commandProjectId = projectComposer ? detailProject?.project_id : _currentChat?.projectId;

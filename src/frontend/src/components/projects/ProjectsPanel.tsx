@@ -54,8 +54,8 @@ export default function ProjectsPanel({ onOpenProject }: { onOpenProject: (proje
           message.error(`${t('新建本地项目')}：${error?.message || error}`);
         });
     };
-    window.addEventListener('hugagent:local-folder', onFolder as EventListener);
-    return () => window.removeEventListener('hugagent:local-folder', onFolder as EventListener);
+    window.addEventListener('luminos:local-folder', onFolder as EventListener);
+    return () => window.removeEventListener('luminos:local-folder', onFolder as EventListener);
   }, [isDesktop, canCreateLocalProject, fetchProjects, onOpenProject]);
 
   const pickLocalProjectFolder = () => {

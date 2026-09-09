@@ -61,8 +61,8 @@ export default function LocalPermissionsModal({ open, onClose }: { open: boolean
       if (!path) return;
       addLocalGrant(path).then(refresh).catch((err) => alert('授权失败：' + (err?.message || err)));
     };
-    window.addEventListener('hugagent:grant-folder', onGrant as EventListener);
-    return () => window.removeEventListener('hugagent:grant-folder', onGrant as EventListener);
+    window.addEventListener('luminos:grant-folder', onGrant as EventListener);
+    return () => window.removeEventListener('luminos:grant-folder', onGrant as EventListener);
   }, [open, refresh]);
 
   if (!open) return null;

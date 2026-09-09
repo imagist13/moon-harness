@@ -46,7 +46,7 @@ interface LoopState {
 
 // livePlan is persisted to localStorage — after refreshing the page while a loop is running, the requirement bar (plan bar) can be restored immediately,
 // without waiting for SSE replay (during long loops the loop_plan event may already have been evicted by the Redis stream maxlen).
-const LIVE_PLAN_KEY = 'hugagent_live_loop_plan';
+const LIVE_PLAN_KEY = 'luminos_live_loop_plan';
 function loadLivePlan(): LoopLivePlan | null {
   try {
     const raw = localStorage.getItem(LIVE_PLAN_KEY);

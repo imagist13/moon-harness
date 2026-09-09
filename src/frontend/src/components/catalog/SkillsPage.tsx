@@ -21,8 +21,8 @@ import { OntologyTagSelect } from '../common/OntologyTagSelect';
 import { CardTail } from '../common/CardTail';
 import { getOntologyBuildFailure, type OntologyBuildFailure } from '../../utils/apiError';
 
-const SKILLS_DETAIL_ID_STORAGE_KEY = 'hugagent_skills_detail_id';
-const SKILLS_DETAIL_KIND_STORAGE_KEY = 'hugagent_skills_detail_kind';
+const SKILLS_DETAIL_ID_STORAGE_KEY = 'luminos_skills_detail_id';
+const SKILLS_DETAIL_KIND_STORAGE_KEY = 'luminos_skills_detail_kind';
 
 // Cards per page in the grid (2-column layout, 6 rows)
 const SKILLS_PAGE_SIZE = 12;

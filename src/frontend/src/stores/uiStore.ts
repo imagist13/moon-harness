@@ -9,7 +9,7 @@ import { writeLocal } from '../storage';
 export type HistoryTimeFilter = 'all' | 'today' | '7d' | '30d';
 export type UpdateFilter = '全部' | UpdateCategory;
 
-const DISPATCH_PROCESS_STORAGE_KEY = 'hugagent_dispatch_process_visible';
+const DISPATCH_PROCESS_STORAGE_KEY = 'luminos_dispatch_process_visible';
 // A resolved SSE can race with an older pending-GET response already in
 // flight. Keep a small process-local tombstone set so that stale recovery
 // snapshots cannot resurrect a question the server has already settled.

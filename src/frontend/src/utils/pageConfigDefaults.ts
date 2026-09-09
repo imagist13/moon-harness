@@ -71,12 +71,12 @@ export const DEFAULT_MENU_ITEMS = ['settings', 'app_center', 'projects', 'lab'];
 
 export const DEFAULT_PAGE_CONFIG: PageConfig = {
   branding: {
-    product_name: 'HugAgentOS',
-    product_subtitle: 'HugAgentOS AI 智能助手',
+    product_name: 'LuminOS',
+    product_subtitle: 'LuminOS AI 智能助手',
     logo_url: '/home/header.svg',
     favicon_url: '/icon.png',
-    page_title: 'HugAgentOS',
-    hero_title: '你好，我是 HugAgentOS',
+    page_title: 'LuminOS',
+    hero_title: '你好，我是 LuminOS',
     hero_subtitle: '今天想从哪里开始？',
     disclaimer: '本平台生成内容由AI大模型生成，不构成任何建议；涉及业务决策请以权威信息为准。',
   },
@@ -127,11 +127,11 @@ export const DEFAULT_PAGE_CONFIG: PageConfig = {
       sites: '在对话里描述需求，AI 生成完整网站并一键发布，由平台托管、凭链接即可访问',
     },
     admin_header: {
-      title: 'HugAgentOS — 后台管理',
+      title: 'LuminOS — 后台管理',
       subtitle: '后台管理',
     },
     admin_platform: {
-      product_name: 'HugAgentOS',
+      product_name: 'LuminOS',
       content_label: '内容管理',
       config_label: '系统配置',
       apidoc_label: '接口文档',

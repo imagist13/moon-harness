@@ -24,7 +24,7 @@ export const ONBOARDING_DICT: Record<string, string> = {
   '选择需要的智能增强': 'Choose intelligence enhancements',
   '你可以控制是否跨对话记忆、是否让系统从你的用法中自我进化，以及是否执行领域本体核验。': 'Control cross-conversation memory, whether the system evolves from how you work, and domain ontology validation.',
   '一切就绪': 'Everything is ready',
-  '完成初始化后，你将进入 HugAgentOS 工作台。': 'Complete setup to enter the HugAgentOS workspace.',
+  '完成初始化后，你将进入 LuminOS 工作台。': 'Complete setup to enter the LuminOS workspace.',
   '主对话模型': 'Primary chat model',
   '索引模型': 'Index model',
   '重排模型': 'Reranker model',
@@ -84,7 +84,7 @@ export const ONBOARDING_DICT: Record<string, string> = {
   '首次设置': 'First-run setup',
   '让我们完成最后几项配置': 'Let’s finish the last few settings',
   '步骤 {current} / {total}': 'Step {current} of {total}',
-  'HugAgentOS 社区版初始化': 'HugAgentOS Community Edition setup',
+  'LuminOS 社区版初始化': 'LuminOS Community Edition setup',
   '不填写即可跳过': 'Leave blank to skip',
   '完成并进入工作台': 'Finish and enter workspace',
 };

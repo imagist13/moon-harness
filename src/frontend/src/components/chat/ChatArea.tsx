@@ -273,9 +273,9 @@ export function ChatArea({
   }, [chat?.agentId, agents]);
 
   // ── Page config default values ──
-  const cfgHeroTitle = usePageConfig('branding.hero_title', '你好，我是 HugAgentOS');
+  const cfgHeroTitle = usePageConfig('branding.hero_title', '你好，我是 LuminOS');
   const cfgHeroSubtitle = usePageConfig('branding.hero_subtitle', '今天想从哪里开始？');
-  const cfgProductName = usePageConfig('branding.product_name', 'HugAgentOS');
+  const cfgProductName = usePageConfig('branding.product_name', 'LuminOS');
   const cfgDisclaimer = usePageConfig('branding.disclaimer', '');
   const cfgInputPlaceholder = usePageConfig('texts.input_placeholder', '请输入你的问题，按Enter发送，Shift+Enter换行');
   const showHomepageLogo = usePageConfig('homepage.show_logo', true);
@@ -388,7 +388,7 @@ export function ChatArea({
             <p className="jx-heroSubtitle">{heroSubtitle}</p>
             {!isAgentChat && !isSiteChat && (
               <div className="jx-mobileHeroText">
-                <h1>HugAgentOS</h1>
+                <h1>LuminOS</h1>
                 <p>{t('你的智能任务助手')}</p>
               </div>
             )}

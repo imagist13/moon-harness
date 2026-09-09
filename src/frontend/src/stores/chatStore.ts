@@ -70,8 +70,8 @@ export function isTurboMode(mode: ChatMode): boolean {
   return mode === 'turbo';
 }
 
-const CURRENT_CHAT_KEY = 'hugagent_current_chat_id';
-const PENDING_SCROLL_MESSAGE_TS_KEY = 'hugagent_pending_scroll_message_ts';
+const CURRENT_CHAT_KEY = 'luminos_current_chat_id';
+const PENDING_SCROLL_MESSAGE_TS_KEY = 'luminos_pending_scroll_message_ts';
 
 function loadCurrentChatId(userId: string | null | undefined) {
   if (typeof window === 'undefined') return nowId('chat');
@@ -130,7 +130,7 @@ function savePendingScrollMessageTs(userId: string | null | undefined, ts: numbe
   writeLocal(key, String(ts));
 }
 
-const QUEUED_MESSAGES_KEY = 'hugagent_queued_messages';
+const QUEUED_MESSAGES_KEY = 'luminos_queued_messages';
 
 /** Persist local and durable cards. Durable cards keep targetRunId for refresh reconciliation. */
 function loadQueuedMessages(userId: string | null | undefined): Record<string, QueuedChatMessage> {

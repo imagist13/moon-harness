@@ -6,15 +6,15 @@ import { useChatStore } from './chatStore';
 import { useAutomationChatStore } from './automationChatStore';
 import { writeLocal, removeLocal } from '../storage';
 
-export const LOGIN_LANDING_KEY = 'hugagent_login_landing';
+export const LOGIN_LANDING_KEY = 'luminos_login_landing';
 // Desktop client plan B: the system browser opens `<web>/?desktop=1` to start login;
 // this flag survives the SSO round trip in sessionStorage (kept for the whole tab
 // lifetime). After a successful login it is used to hand the session over to the
 // desktop App via a one-time handoff ticket (deep-link wake-up) instead of rendering
 // the app in the browser.
-const DESKTOP_LOGIN_FLAG = 'hugagent_desktop_login';
+const DESKTOP_LOGIN_FLAG = 'luminos_desktop_login';
 // Custom protocol registered by the desktop App; the handoff ticket is passed back through it to wake the App.
-const DESKTOP_CALLBACK_SCHEME = 'hugagent://auth/callback';
+const DESKTOP_CALLBACK_SCHEME = 'luminos://auth/callback';
 
 let authInitPromise: Promise<void> | null = null;
 // Cached promise for the SSO authorize URL — stable per session, so we
@@ -120,7 +120,7 @@ async function logoutViaDesktopShell(): Promise<boolean> {
   }
 }
 
-/** Trigger `hugagent://` to wake the desktop App. Uses a hidden iframe to fire the custom
+/** Trigger `luminos://` to wake the desktop App. Uses a hidden iframe to fire the custom
  * protocol, avoiding a top-level navigation that blanks the current page / leaves it
  * loading forever; browsers where the iframe has no effect fall back to top-level location. */
 function triggerDesktopDeepLink(deeplink: string): void {
@@ -165,7 +165,7 @@ function showDesktopReturnOverlay(deeplink: string): void {
     '<svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#02B589" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
     '</div>' +
     '<h1 style="font-size:21px;font-weight:600;margin:0 0 8px">登录成功</h1>' +
-    '<p style="font-size:13.5px;color:#808080;line-height:1.75;margin:0 0 28px">已唤起HugAgentOS桌面客户端，<br/>您可以关闭此页面了。</p>' +
+    '<p style="font-size:13.5px;color:#808080;line-height:1.75;margin:0 0 28px">已唤起LuminOS桌面客户端，<br/>您可以关闭此页面了。</p>' +
     '<button id="jx-reopen" style="width:100%;height:46px;border:none;border-radius:12px;cursor:pointer;background:#126DFF;color:#fff;font-size:15px;font-weight:500">没有自动唤起？重新打开客户端</button>' +
     '<div id="jx-close" style="margin-top:14px;font-size:13px;color:#126DFF;cursor:pointer">关闭此页面</div>' +
     '</div>';
