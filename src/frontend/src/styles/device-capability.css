@@ -1,0 +1,22 @@
+/* 桌面双模式：能力卡片上的「本机 / 云端」来源标记。纯展示，没有操作。
+   走颜色令牌（深色模式随令牌切换），低饱和主色底纹，不用黄色高亮。 */
+
+.jx-devcap-chip {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--color-fill-hover);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.jx-devcap-src-cloud,
+.jx-devcap-src-local,
+.jx-devcap-src-builtin,
+.jx-devcap-src-plugin {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}

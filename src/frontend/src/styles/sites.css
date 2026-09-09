@@ -1,0 +1,356 @@
+/* 站点管理面板（实验室 → 站点） */
+
+.jx-sites-body {
+  padding: var(--space-md) 0;
+  overflow-y: auto;
+}
+
+.jx-sites-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 880px;
+}
+
+.jx-sites-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bg-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.jx-sites-cardMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.jx-sites-cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.jx-sites-cardTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-sites-cardUrl {
+  display: inline-block;
+  font-size: 14px;
+  color: var(--color-primary);
+  margin-bottom: var(--space-xs);
+  word-break: break-all;
+}
+
+.jx-sites-cardUrl:hover {
+  color: var(--color-primary-hover);
+}
+
+.jx-sites-cardMeta {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.jx-sites-cardActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.jx-sites-emptyHint {
+  margin-top: var(--space-xs);
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+}
+
+.jx-sites-tabActions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  justify-content: flex-end;
+}
+
+.jx-sites-payload {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+/* 分享记录页的「已发布站点」区块 */
+.jx-shareSites {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  background: var(--color-bg-gray);
+}
+
+.jx-shareSitesTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.jx-shareSiteRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.jx-shareSiteName {
+  font-weight: 500;
+  color: var(--color-text);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-shareSiteUrl {
+  color: var(--color-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-shareSiteViews {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.jx-shareSitesHint {
+  margin-top: var(--space-xs);
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+}
+
+/* ── 建站落地视图：沿用主对话空态骨架，仅补一个右上浮层工具条 ── */
+.jx-sitesEmptyPage { position: relative; }
+
+.jx-sitesCreate-topbar {
+  position: absolute;
+  top: var(--space-md);
+  left: var(--space-md);
+  right: var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 3;
+}
+
+/* ── 列表视图补充 ── */
+.jx-sites-search { margin-bottom: var(--space-lg); border-radius: var(--radius-lg); }
+.jx-sites-emptyTitle { font-size: 16px; font-weight: 600; color: var(--color-text); }
+.jx-sites-emptyDesc { margin-top: 4px; font-size: 13px; color: var(--color-text-secondary); }
+
+@media (max-width: 768px) {
+  .jx-sites-body {
+    padding-top: 4px;
+    overflow: visible;
+  }
+
+  .jx-sites-search {
+    margin-bottom: 14px;
+  }
+
+  .jx-sites-list {
+    gap: 12px;
+  }
+
+  .jx-sites-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .jx-sites-cardHead {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .jx-sites-cardTitle {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .jx-sites-cardUrl {
+    display: block;
+    max-width: 100%;
+  }
+
+  .jx-sites-cardMeta {
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+  }
+
+  .jx-sites-cardActions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .jx-sites-cardActions .ant-btn {
+    margin: 0;
+  }
+
+  .jx-sites-tabActions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .jx-sites-manageModal .ant-modal {
+    max-width: calc(100vw - 24px);
+    margin: 12px auto;
+    padding-bottom: 0;
+  }
+
+  .jx-sites-manageModal .ant-modal-content {
+    padding: 18px 16px;
+  }
+
+  .jx-sites-manageModal .ant-modal-title {
+    padding-right: 24px;
+    overflow-wrap: anywhere;
+  }
+
+  .jx-sites-manageModal .ant-tabs-nav {
+    margin-bottom: 14px;
+  }
+
+  .jx-sites-manageModal .ant-tabs-nav-wrap {
+    overflow-x: auto;
+  }
+
+  .jx-sites-manageModal .ant-input-group-addon {
+    max-width: 112px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .jx-sites-list {
+    overflow: hidden;
+    gap: 0;
+    border: 1px solid color-mix(in srgb, var(--color-text) 6.5%, transparent);
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--color-bg-container) 94%, transparent);
+    box-shadow: 0 12px 34px rgba(42,61,94,.075), 0 1px 2px rgba(15,23,42,.035);
+  }
+
+  .jx-sites-card {
+    padding: 18px 16px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .jx-sites-card + .jx-sites-card {
+    border-top: 1px solid color-mix(in srgb, var(--color-text) 7.5%, transparent);
+  }
+
+  .jx-sites-cardTitle {
+    color: var(--color-text);
+    font-size: 17px;
+    font-weight: 650;
+    line-height: 1.4;
+  }
+
+  .jx-sites-cardMeta {
+    color: var(--color-text-tertiary);
+    font-size: 13px;
+  }
+
+  /* 36px 低于触摸热区下限；站点卡片上的「打开 / 复制链接 / 编辑 / 管理 / 删除」
+     是这一页的全部操作，点不中就等于没有。 */
+  .jx-sites-cardActions .ant-btn {
+    min-height: 44px;
+    padding-inline: 14px;
+    border-radius: 12px;
+  }
+}
+
+/* ── 移动端站点预览（应用内打开 + 返回栏） ──────────────────────────────
+   站点是后端直出的独立页面（/site/<slug>/），一旦用 window.open 跳出去，
+   页面上就没有任何回到本应用的入口——部分移动浏览器还会把 _blank 当同标签
+   跳转，用户只剩浏览器后退键可用。这一层把站点套进 iframe，返回入口留在外面。
+   桌面不用它（新标签页本来就回得来）。 */
+.jx-sitePreview {
+  position: fixed;
+  inset: 0;
+  /* 高于侧栏抽屉（1002），否则抽屉会盖住返回栏 */
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-container);
+}
+
+.jx-sitePreview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: calc(6px + var(--jx-safe-t, 0px)) max(8px, var(--jx-safe-r, 0px)) 6px max(8px, var(--jx-safe-l, 0px));
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-container);
+}
+
+.jx-sitePreview-back,
+.jx-sitePreview-external {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  /* 触摸热区下限，与 mobile.css 的 --jx-touch-min 同源 */
+  width: var(--jx-touch-min, 44px);
+  height: var(--jx-touch-min, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.jx-sitePreview-back:active,
+.jx-sitePreview-external:active {
+  background: var(--color-bg-gray);
+}
+
+.jx-sitePreview-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-sitePreview-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--color-bg-container);
+}

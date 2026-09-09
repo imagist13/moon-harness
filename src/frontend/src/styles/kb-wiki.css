@@ -1,0 +1,1372 @@
+/* 外接知识库的 LLM Wiki / 概念图谱视图
+ *
+ * 布局取「资料库」的观感：左侧是可筛选的知识页索引，右侧是阅读区；
+ * 图谱单独一屏，用自绘 SVG 呈现概念之间的关联。
+ */
+
+.jx-wikiPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-height: 0;
+}
+
+/* ── 顶部：Tab + 统计 ─────────────────────────────────────────────────────── */
+
+.jx-wikiHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-md) var(--space-lg);
+  background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-bg-container) 62%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.jx-wikiHeaderMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.jx-wikiTabs {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: color-mix(in srgb, var(--color-bg-container) 72%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.jx-wikiTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.jx-wikiTab:hover {
+  color: var(--color-primary);
+}
+
+.jx-wikiTab.is-active {
+  color: var(--color-primary);
+  background: var(--color-bg-container);
+  box-shadow: 0 1px 4px rgba(18, 109, 255, 0.14);
+}
+
+.jx-wikiStats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.jx-wikiStatsTotal {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.jx-wikiStatsTotal b {
+  font-family: var(--font-family-number, var(--font-family));
+  font-size: 18px;
+  color: var(--color-primary);
+  margin-right: 3px;
+}
+
+.jx-wikiStatChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  background: color-mix(in srgb, var(--color-bg-container) 80%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+}
+
+.jx-wikiStatChip b {
+  font-family: var(--font-family-number, var(--font-family));
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.jx-wikiHeaderHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-text-tertiary);
+  max-width: 900px;
+}
+
+/* ── 主体：索引 + 阅读区 ──────────────────────────────────────────────────── */
+
+.jx-wikiBody {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.jx-wikiSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-md);
+  background: var(--color-bg-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  max-height: 720px;
+}
+
+.jx-wikiSearchRow {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.jx-wikiTypeFilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jx-wikiTypeChip {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-gray);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.jx-wikiTypeChip:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.jx-wikiTypeChip.is-active {
+  color: var(--color-primary);
+  background: var(--color-primary-bg);
+  border-color: var(--color-primary);
+  font-weight: 500;
+}
+
+.jx-wikiListMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 2px;
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+  border-top: 1px solid var(--color-border);
+  padding-top: 10px;
+}
+
+.jx-wikiList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  min-height: 0;
+  margin: 0 calc(var(--space-sm) * -1);
+  padding: 0 var(--space-sm) 2px;
+}
+
+.jx-wikiListItem {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  animation: jx-wikiItemIn 0.32s ease both;
+  animation-delay: calc(var(--stagger-index, 0) * 16ms);
+}
+
+@keyframes jx-wikiItemIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* motion-stop: 减弱动效下定格在终态（同名关键帧后定义者胜，用到它的规则一起生效） */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes jx-wikiItemIn { from, to { opacity: 1; transform: translateY(0) } }
+}
+
+
+.jx-wikiListItem:hover {
+  background: var(--color-bg-gray);
+  border-color: var(--color-border);
+}
+
+.jx-wikiListItem.is-active {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.jx-wikiListItemTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jx-wikiListItemTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-wikiListItemDesc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-tertiary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.jx-wikiListItemMeta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--color-text-placeholder);
+}
+
+.jx-wikiListItemSkeleton {
+  gap: 8px;
+  pointer-events: none;
+}
+
+.jx-wikiSkTitle { height: 14px; width: 62%; }
+.jx-wikiSkDesc { height: 11px; width: 90%; }
+
+.jx-wikiListEmpty {
+  padding: var(--space-lg) var(--space-sm);
+  text-align: center;
+}
+
+.jx-wikiListEmptyHint {
+  margin: var(--space-sm) 0 0;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--color-text-tertiary);
+  text-align: left;
+}
+
+.jx-wikiListEmptyHint code {
+  padding: 1px 5px;
+  font-size: 11px;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-radius: var(--radius-xs);
+}
+
+/* 类型标签 —— 与图谱节点配色同源 */
+
+.jx-wikiTypeTag {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-gray);
+}
+
+.jx-wikiTypeTag--entity { color: var(--color-primary); background: var(--color-primary-bg); }
+.jx-wikiTypeTag--concept { color: var(--color-tint-teal); background: var(--color-tint-teal-bg); }
+.jx-wikiTypeTag--summary { color: var(--color-tint-amber); background: var(--color-tint-amber-bg); }
+.jx-wikiTypeTag--index { color: var(--color-tint-purple); background: var(--color-tint-purple-bg); }
+
+/* ── 阅读区 ───────────────────────────────────────────────────────────────── */
+
+.jx-wikiReader {
+  background: var(--color-bg-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  min-height: 480px;
+  max-height: 720px;
+  overflow-y: auto;
+}
+
+.jx-wikiReaderLoading,
+.jx-wikiReaderPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 460px;
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+.jx-wikiReaderPlaceholderIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  font-size: 26px;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-radius: 50%;
+}
+
+.jx-wikiReaderPlaceholder h3 {
+  margin: 6px 0 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.jx-wikiReaderPlaceholder p {
+  margin: 0;
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--color-text-tertiary);
+}
+
+.jx-wikiArticle {
+  padding: var(--space-lg) 32px var(--space-xl);
+  animation: jx-wikiItemIn 0.3s ease both;
+}
+
+.jx-wikiArticleHead {
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-md);
+}
+
+.jx-wikiBreadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+  margin-bottom: 8px;
+}
+
+.jx-wikiBreadcrumb i {
+  font-style: normal;
+  margin-left: 4px;
+  color: var(--color-fill);
+}
+
+.jx-wikiArticleTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.jx-wikiAliases {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+}
+
+.jx-wikiAliases span {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-gray);
+  border-radius: var(--radius-xs);
+}
+
+.jx-wikiArticleBody {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--color-text-secondary);
+}
+
+.jx-wikiArticleBody h1 { display: none; } /* 正文首行 H1 与标题重复 */
+
+.jx-wikiArticleBody h2,
+.jx-wikiArticleBody h3 {
+  margin: var(--space-lg) 0 var(--space-sm);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.jx-wikiArticleBody p { margin: 0 0 12px; }
+
+.jx-wikiArticleBody ul,
+.jx-wikiArticleBody ol { padding-left: 22px; margin: 0 0 12px; }
+
+/* 双链：视觉上要能一眼认出是「可以点进去的另一个概念」 */
+.jx-wikiLink {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+
+.jx-wikiLink:hover {
+  background: var(--color-primary-bg);
+  text-decoration: none;
+}
+
+/* 相关概念 */
+
+.jx-wikiRelated {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.jx-wikiRelated h4,
+.jx-wikiSourceHead h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.jx-wikiRelatedList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jx-wikiRelatedChip {
+  padding: 4px 11px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-gray);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-wikiRelatedChip:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+/* 原文出处 */
+
+.jx-wikiSource {
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--color-bg-gray);
+  border-radius: var(--radius-sm);
+}
+
+.jx-wikiSourceHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.jx-wikiSourceHead h4 { margin: 0; }
+
+.jx-wikiSourceHint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-text-tertiary);
+}
+
+.jx-wikiSourceList {
+  margin: var(--space-md) 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jx-wikiSourceItem {
+  padding: 10px 12px;
+  background: var(--color-bg-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.jx-wikiSourceItemHead {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-primary);
+  margin-bottom: 5px;
+}
+
+.jx-wikiSourceItemBody {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+}
+
+/* ── 概念图谱 ─────────────────────────────────────────────────────────────── */
+
+.jx-wikiGraphWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-bg-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.jx-wikiGraphToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.jx-wikiGraphToolbarLabel {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.jx-wikiGraphTruncated {
+  margin-left: auto;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--color-warning);
+  background: var(--color-warning-light);
+  border-radius: var(--radius-xs);
+}
+
+.jx-wikiGraphLoading,
+.jx-wikiGraphEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 420px;
+  color: var(--color-text-placeholder);
+  font-size: 13px;
+}
+
+.jx-wikiGraphCanvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-sm);
+  background:
+    radial-gradient(circle at 22% 18%, rgba(18, 109, 255, 0.05), transparent 46%),
+    radial-gradient(circle at 78% 76%, rgba(2, 181, 137, 0.05), transparent 46%),
+    var(--color-bg-gray);
+  overflow: hidden;
+}
+
+.jx-wikiGraphNodeLabel {
+  font-size: 11px;
+  fill: var(--color-text-secondary);
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* 关系名：比节点名更小更淡，白描边保证压在边线上仍读得清 */
+.jx-wikiGraphEdgeLabel {
+  font-size: 10px;
+  fill: var(--color-text-tertiary);
+  pointer-events: none;
+  paint-order: stroke;
+  /* 描边取画布底色而不是写死白，深色主题下同样能把线从字底下挡开 */
+  stroke: var(--color-bg-gray);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.jx-wikiGraphLegend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 10px var(--space-md);
+  flex-wrap: wrap;
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-container) 70%, transparent);
+}
+
+.jx-wikiGraphLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.jx-wikiGraphLegendItem i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid;
+}
+
+.jx-wikiGraphLegendHint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+}
+
+.jx-wikiGraphFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 4px 2px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* ── 窄屏 ─────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+  .jx-wikiBody {
+    grid-template-columns: 268px minmax(0, 1fr);
+  }
+  .jx-wikiArticle { padding: var(--space-md) var(--space-lg) var(--space-lg); }
+}
+
+@media (max-width: 900px) {
+  .jx-wikiBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .jx-wikiSidebar { max-height: 380px; }
+  .jx-wikiReader { max-height: none; }
+  .jx-wikiHeaderMain { align-items: flex-start; flex-direction: column; }
+}
+
+/* ── 知识库详情内的「文档 / 知识 Wiki」视图切换 ─────────────────────────────── */
+
+
+/* ── 建库时的索引方式选择 ────────────────────────────────────────────────
+   建库是高频轻量动作，这一区只承载「两张卡 + 一个粒度」的信息量：
+   解释性文字收进 tooltip，自定义要求收进折叠区。 */
+
+.jx-idxMode {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jx-idxModeHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jx-idxModeBadge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.jx-idxModeCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.jx-idxModeCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-container);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.jx-idxModeCard:hover:not(:disabled) {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-light);
+}
+
+.jx-idxModeCard.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.jx-idxModeCard:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.jx-idxModeIcon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  font-size: 15px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-gray);
+}
+
+.jx-idxModeCard.is-active .jx-idxModeIcon {
+  color: var(--color-primary);
+  background: var(--color-bg-container);
+}
+
+.jx-idxModeText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.jx-idxModeTitle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.jx-idxModeInfo {
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+}
+
+.jx-idxModeInfo:hover {
+  color: var(--color-primary);
+}
+
+.jx-idxModeTagline {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jx-idxModeWiki {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-gray);
+}
+
+.jx-idxModeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.jx-idxModeRowLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.jx-idxModeToggle {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.jx-idxModeToggle:hover {
+  color: var(--color-primary);
+}
+
+.jx-idxModeOptional {
+  margin-left: 6px;
+  color: var(--color-text-placeholder);
+}
+
+.jx-idxModeAdvanced {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jx-idxModeField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jx-idxModeField label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.jx-idxModeNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+/* 已开 Wiki 但还没生成过条目页时的提示条 */
+   给用户一个明确的下一步动作，而不是把他们丢在一个空白 Tab 前面 */
+.jx-kbWikiPrompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-gray);
+  font-size: 13px;
+  color: var(--color-text-secondary, var(--color-text-secondary));
+}
+
+.jx-kbViewSwitch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-bg-gray);
+  border-radius: var(--radius-sm);
+  align-self: flex-start;
+}
+
+.jx-kbViewSwitchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.jx-kbViewSwitchBtn:hover { color: var(--color-primary); }
+
+.jx-kbViewSwitchBtn.is-active {
+  color: var(--color-primary);
+  background: var(--color-bg-container);
+  box-shadow: 0 1px 4px rgba(18, 109, 255, 0.14);
+}
+
+.jx-kbViewSwitchCount {
+  padding: 0 7px;
+  font-family: var(--font-family-number, var(--font-family));
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-text-placeholder);
+  background: var(--color-bg-gray);
+  border-radius: 999px;
+}
+
+.jx-kbViewSwitchBtn.is-active .jx-kbViewSwitchCount {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+/* 相关概念 chip 上的类型色点：一眼分清是概念还是实体 */
+.jx-wikiRelatedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jx-wikiRelatedChipDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
+/* ── 侧栏：索引入口 / 目录树 ─────────────────────────────────────────────────── */
+
+.jx-wikiNavItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-gray);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.jx-wikiNavItem:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.jx-wikiNavItem.is-active {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  font-weight: 500;
+}
+
+.jx-wikiNavCount {
+  margin-left: auto;
+  font-family: var(--font-family-number, var(--font-family));
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+}
+
+.jx-wikiTypeChip b {
+  margin-left: 5px;
+  font-family: var(--font-family-number, var(--font-family));
+  font-weight: 500;
+}
+
+.jx-wikiTree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.jx-wikiTreeFolder,
+.jx-wikiTreePage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px 6px 8px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.jx-wikiTreeFolder:hover,
+.jx-wikiTreePage:hover {
+  background: var(--color-bg-gray);
+}
+
+.jx-wikiTreeCaret {
+  display: inline-flex;
+  width: 12px;
+  font-size: 10px;
+  color: var(--color-text-placeholder);
+  flex-shrink: 0;
+}
+
+.jx-wikiTreeFolderIcon {
+  color: var(--color-warning);
+  flex-shrink: 0;
+}
+
+.jx-wikiTreeFolderName,
+.jx-wikiTreePageName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-wikiTreeFolderName { font-weight: 500; color: var(--color-text); }
+
+.jx-wikiTreeCount {
+  margin-left: auto;
+  padding-left: 6px;
+  font-family: var(--font-family-number, var(--font-family));
+  font-size: 11px;
+  color: var(--color-text-placeholder);
+  flex-shrink: 0;
+}
+
+/* 页面前的类型色点：复用类型标签的配色，靠 currentColor 取到前景色 */
+.jx-wikiTreePageIcon {
+  flex-shrink: 0;
+  width: 14px;
+  font-size: 9px;
+  line-height: 1;
+  text-align: center;
+  background: transparent !important;
+  padding: 0;
+}
+
+.jx-wikiTreePage.is-active {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  font-weight: 500;
+}
+
+.jx-wikiTreeLoading,
+.jx-wikiTreeEmpty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--color-text-placeholder);
+}
+
+/* ── 索引总览 ─────────────────────────────────────────────────────────────── */
+
+.jx-wikiIndexIntro {
+  padding: var(--space-md);
+  background: var(--color-bg-gray);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.jx-wikiIndexIntro h1 { display: none; }
+
+.jx-wikiIndexGroup { margin-bottom: var(--space-lg); }
+
+.jx-wikiIndexGroupTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.jx-wikiIndexGroupCount {
+  font-family: var(--font-family-number, var(--font-family));
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-placeholder);
+}
+
+.jx-wikiIndexItems {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.jx-wikiIndexItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--color-bg-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.jx-wikiIndexItem:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.jx-wikiIndexItemTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-wikiIndexItemDesc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-tertiary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── 图谱：舞台 + 图例 + 右侧详情面板 ───────────────────────────────────────── */
+
+.jx-wikiGraphStage {
+  display: block;
+}
+
+.jx-wikiGraphStageMain {
+  position: relative;
+  height: 620px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.jx-wikiGraphBudget {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.jx-wikiGraphBudgetBtn {
+  padding: 3px 10px;
+  font-family: var(--font-family-number, var(--font-family));
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-gray);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.jx-wikiGraphBudgetBtn:hover { color: var(--color-primary); }
+
+.jx-wikiGraphBudgetBtn.is-active {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+/* 图例浮在画布上，点一下可只看某一类 */
+.jx-wikiGraphLegend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-bg-container) 92%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(6px);
+}
+
+.jx-wikiGraphLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: opacity 0.14s ease, background 0.14s ease;
+}
+
+.jx-wikiGraphLegendItem:hover { background: var(--color-bg-gray); }
+
+.jx-wikiGraphLegendItem.is-off {
+  opacity: 0.38;
+  text-decoration: line-through;
+}
+
+/* 节点详情抽屉：浮在画布上层，不挤压画布、不触发重排（参照 WeKnora 的右侧 drawer） */
+.jx-wikiGraphDrawer {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: 400px;
+  max-width: calc(100% - 24px);
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  animation: jx-wikiGraphDrawerIn 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes jx-wikiGraphDrawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+/* motion-stop: 减弱动效下定格在终态（同名关键帧后定义者胜，用到它的规则一起生效） */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes jx-wikiGraphDrawerIn { from, to { opacity: 1;
+    transform: translateX(0) } }
+}
+
+
+.jx-wikiGraphPanelHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.jx-wikiGraphPanelHead h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-wikiGraphPanelMeta {
+  display: flex;
+  gap: var(--space-md);
+  padding: 10px var(--space-md) 0;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.jx-wikiGraphPanelMeta b {
+  font-family: var(--font-family-number, var(--font-family));
+  color: var(--color-primary);
+}
+
+.jx-wikiGraphPanelActions {
+  display: flex;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+}
+
+.jx-wikiGraphPanelBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-md) var(--space-md);
+}
+
+.jx-wikiGraphPanelLoading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-lg);
+}
+
+.jx-wikiGraphPanelSummary {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--color-text-secondary);
+}
+
+.jx-wikiGraphPanelContent {
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--color-text-secondary);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.jx-wikiGraphPanelContent h1 { display: none; }
+.jx-wikiGraphPanelContent h2,
+.jx-wikiGraphPanelContent h3 { font-size: 14px; margin: 12px 0 6px; color: var(--color-text); }
+
+.jx-wikiGraphPanelNeighbours { margin-top: var(--space-md); }
+
+.jx-wikiGraphPanelNeighbours h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.jx-wikiGraphNeighbourList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jx-wikiGraphNeighbour {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+.jx-wikiGraphNeighbour:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.jx-wikiGraphNeighbourDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  flex-shrink: 0;
+}
+
+.jx-wikiGraphNeighbourName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jx-wikiGraphNeighbourCount {
+  font-family: var(--font-family-number, var(--font-family));
+  font-size: 11px;
+  color: var(--color-text-placeholder);
+}
+
+@media (max-width: 1180px) {
+  .jx-wikiGraphStageMain { height: 520px; }
+  .jx-wikiGraphDrawer { width: 340px; }
+}
