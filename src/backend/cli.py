@@ -97,6 +97,15 @@ def _resolve_frontend_dist() -> Optional[str]:
 
 def apply_local_env(port: int) -> dict:
     """Populate the local-profile env (idempotent; real env wins) + data dirs."""
+    # Force-load repo-level .env BEFORE writing local-profile defaults, so
+    # anything the user (or installer) put in .env wins over the hard-coded
+    # ``local``/``ce`` defaults below.  Without this ordering, the
+    # setdefault() below would lock SSO_LOGIN_MODE=local and JX_EDITION=ce
+    # into the process env, and settings._load_env_files (which also uses
+    # setdefault) would silently no-op, leaving the backend in the wrong
+    # login mode even after editing .env.
+    import core.config.settings  # noqa: F401  (triggers _load_env_files)
+
     ensure_loopback_proxy_bypass()
     dd = data_dir()
     for sub in ("", "storage", "workspace", "logs", "node", "node/browsers", "fonts"):

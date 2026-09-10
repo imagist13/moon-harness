@@ -1,0 +1,472 @@
+/* markdown - enhanced styling */
+.jx-md{
+  font-size:14.5px;
+  line-height:1.74;
+  color:var(--color-text);
+  letter-spacing:.004em;
+}
+
+/* Headings with visual hierarchy */
+.jx-md h1,
+.jx-md h2,
+.jx-md h3,
+.jx-md h4{
+  font-weight:600;
+  margin:12px 0 6px;
+  line-height:1.44;
+  color:var(--color-text);
+}
+/* markdown 里的图片必须被容器夹住。知识库图片入库后，分块正文里是一条
+   `![](/api/v1/catalog/kb/assets/...)`，文档「内容预览」与对话正文都用这个容器渲染，
+   没有这条规则时图片按**原始像素**铺开，弹窗直接装不下（截图型资产尤其明显）。 */
+.jx-md img{
+  max-width:100%;
+  height:auto;
+  border-radius:var(--radius-sm);
+  border:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  background:var(--color-bg-gray);
+}
+
+.jx-md h1:first-child,
+.jx-md h2:first-child,
+.jx-md h3:first-child{margin-top:0}
+
+.jx-md h1{
+  font-size:20px;
+  margin-bottom:6px;
+}
+.jx-md h2{
+  font-size:17px;
+  margin-bottom:5px;
+}
+.jx-md h3{
+  font-size:15px;
+  color:var(--color-text);
+  margin-bottom:4px;
+}
+.jx-md h4{
+  font-size:13px;
+  color:var(--color-text-secondary);
+  margin-bottom:4px;
+}
+
+/* Paragraphs */
+.jx-md p{
+  margin:0 0 10px;
+  line-height:1.76;
+}
+.jx-md p:last-child{margin-bottom:0}
+
+/* Lists with compact spacing */
+.jx-md ul,
+.jx-md ol{
+  margin:6px 0 10px;
+  padding-left:1.55em;
+}
+.jx-md li{
+  line-height:1.74;
+  margin:0;
+  color:var(--color-text);
+}
+.jx-md li > p{
+  margin:0;
+  line-height:1.74;
+}
+.jx-md ul > li + li,
+.jx-md ol > li + li{
+  margin-top:4px;
+}
+
+/* Nested lists */
+.jx-md li > ul,
+.jx-md li > ol{
+  margin-top:2px;
+  margin-bottom:0;
+}
+
+/* Code blocks with syntax highlighting style */
+.jx-md pre{
+  background:var(--color-bg-layout);
+  padding:11px 14px;
+  border-radius:12px;
+  overflow:auto;
+  border:1px solid rgba(17,24,39,.07);
+  margin:10px 0;
+  box-shadow:none;
+}
+.jx-md code{
+  background:rgba(15,23,42,.05);
+  color:var(--color-text-secondary);
+  padding:2px 6px;
+  border-radius:6px;
+  font-size:12.5px;
+  font-family:'Consolas', 'Monaco', 'Courier New', monospace;
+  font-weight:500;
+}
+.jx-md pre code{
+  background:transparent;
+  color:var(--color-text);
+  padding:0;
+  font-weight:400;
+}
+
+/* Blockquotes with accent */
+.jx-md blockquote{
+  border-left:2px solid rgba(18,109,255,.50);
+  padding:10px 14px 10px 15px;
+  margin:10px 0;
+  background:rgba(18,109,255,.035);
+  border-radius:10px;
+  color:var(--color-text);
+  font-style:normal;
+}
+
+/* Tables */
+.jx-md table{
+  border-collapse:collapse;
+  width:100%;
+  margin:8px 0;
+  border-radius:8px;
+  overflow:hidden;
+  border:1px solid rgba(17,24,39,.12);
+  box-shadow:none;
+}
+.jx-md th,
+.jx-md td{
+  border:1px solid rgba(17,24,39,.08);
+  padding:10px 12px;
+  text-align:left;
+}
+.jx-md th{
+  background:var(--color-bg-gray);
+  font-weight:900;
+  font-size:12px;
+  color:var(--color-text-secondary);
+  text-transform:uppercase;
+  letter-spacing:0.3px;
+}
+.jx-md td{
+  font-size:12px;
+  color:var(--color-text);
+}
+.jx-md tr:nth-child(even) td{
+  background:var(--color-bg-layout);
+}
+
+/* 表格复制：mdToHtml postprocess 给每个 <table> 包 .jx-mdTable 容器并注入右上角
+   复制按钮（utils/tableCopy.ts）。悬浮到表格上才显示，触屏（无 hover）常显。 */
+.jx-mdTable{
+  position:relative;
+}
+.jx-mdTable-copy{
+  position:absolute;
+  top:6px;
+  right:6px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:24px;
+  height:24px;
+  padding:0;
+  border:1px solid var(--color-border);
+  border-radius:var(--radius-xs);
+  background:var(--color-bg-elevated);
+  color:var(--color-text-tertiary);
+  cursor:pointer;
+  opacity:0;
+  z-index:1;
+  transition:opacity var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+.jx-mdTable:hover .jx-mdTable-copy,
+.jx-mdTable-copy:focus-visible{
+  opacity:1;
+}
+.jx-mdTable-copy:hover{
+  color:var(--color-primary);
+  border-color:var(--color-primary);
+}
+.jx-mdTable-copy--done{
+  color:var(--color-success);
+  border-color:var(--color-success);
+  opacity:1;
+}
+.jx-mdTable-copy--fail{
+  color:var(--color-error);
+  border-color:var(--color-error);
+  opacity:1;
+}
+@media (hover: none){
+  .jx-mdTable-copy{
+    opacity:1;
+  }
+}
+
+/* Links */
+.jx-md a{
+  color:var(--color-text);
+  text-decoration:none;
+  font-weight:600;
+  border-bottom:1px solid color-mix(in srgb, var(--color-text) 25%, transparent);
+  transition:all 0.2s ease;
+}
+.jx-md a:hover{
+  color:var(--color-text);
+  border-bottom-color:color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+
+/* Strong/Bold text */
+.jx-md strong{
+  font-weight:900;
+  color:var(--color-text);
+}
+
+/* Horizontal rule */
+.jx-md hr{
+  border:none;
+  height:2px;
+  background:linear-gradient(90deg, rgba(18,109,255,.15) 0%, rgba(18,109,255,.05) 50%, rgba(18,109,255,.15) 100%);
+  margin:12px 0;
+  border-radius:2px;
+}
+
+/* ── 证据锚点内联标注（[锚文本](cite:eN) 形态）──
+   **刻意不做成超链接**：cite:eN 不是可跳转地址，蓝字+下划线会诱导用户期待跳转、
+   点进空白页。改成"选中态"观感——灰色实心底 + 加粗，被引用的文字一眼可辨；
+   交互靠悬浮卡片与点击详情。处于 portal + DOM 移植路径：禁止 motion 组件，
+   hover 全走 CSS。 */
+.jx-citeRef{
+  cursor:pointer;
+  /* 胶囊 chip：只用极浅底，不描边——正文里往往连续出现多条，描边会积成噪点 */
+  background:rgba(15,23,42,.05);
+  border-radius:999px;
+  color:var(--color-text-tertiary);
+  font-size:.855em;
+  font-weight:500;
+  /* 压住行高：chip 比正文小，若继承 1.74 的行高会把整行行盒撑高、段落忽宽忽窄 */
+  line-height:1.45;
+  padding:1px 8px;
+  margin:0 1px;
+  /* 保持 inline：长锚文本仍能自然折行；clone 让折行两段都带底 */
+  -webkit-box-decoration-break:clone;
+  box-decoration-break:clone;
+  transition:color var(--motion-duration-fast) var(--motion-ease-standard),
+             background-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+.jx-citeRef:hover{
+  background:var(--color-primary-light);
+  color:var(--color-primary);
+}
+.jx-citeRef:focus-visible{
+  outline:2px solid var(--color-primary);
+  outline-offset:1px;
+}
+/* 来源类型小图标：与文字基线对齐，弱化到不喧宾夺主 */
+.jx-citeRef-icon{
+  width:10px;
+  height:10px;
+  object-fit:contain;
+  vertical-align:-1px;
+  margin-right:4px;
+  opacity:.5;
+}
+.jx-citeRef:hover .jx-citeRef-icon{ opacity:.85; }
+
+/* ── 引用来源悬浮卡（角标与内联标注共用）── */
+.jx-citPopover .ant-popover-inner{
+  border-radius:var(--radius-md);
+  padding:0;
+  overflow:hidden;
+}
+.jx-citPopover .ant-popover-inner-content{ padding:0; }
+.jx-citCard{
+  max-width:320px;
+  padding:12px 14px;
+  font-size:13px;
+  cursor:pointer;
+}
+.jx-citCard--missing{
+  color:var(--color-text-placeholder);
+  font-size:12px;
+  cursor:default;
+}
+.jx-citCard-head{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  margin-bottom:6px;
+}
+.jx-citCard-source{
+  color:var(--color-text-tertiary);
+  font-size:12px;
+  font-weight:600;
+}
+.jx-citCard-anchor{
+  margin-left:auto;
+  padding:0 5px;
+  border-radius:var(--radius-xs);
+  background:var(--color-primary-light);
+  color:var(--color-primary);
+  font-family:var(--font-family-number);
+  font-size:11px;
+  font-weight:600;
+  line-height:16px;
+}
+.jx-citCard-title{
+  color:var(--color-text);
+  font-weight:600;
+  line-height:1.5;
+  margin-bottom:6px;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.jx-citCard-snippet{
+  font-size:12px;
+  color:var(--color-text-tertiary);
+  line-height:1.6;
+  border-left:2px solid var(--color-border);
+  padding-left:8px;
+}
+.jx-citCard-foot{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:8px;
+  font-size:11px;
+}
+.jx-citCard-domain{
+  color:var(--color-text-placeholder);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.jx-citCard-action{
+  margin-left:auto;
+  color:var(--color-primary);
+  font-weight:600;
+  white-space:nowrap;
+}
+
+/* ── App loading skeleton（首屏认证/Catalog 加载）───────────── */
+.jx-appLoading{
+  display:flex;
+  height:100vh;
+  width:100vw;
+  background:var(--color-bg-container);
+}
+.jx-appLoading-sidebar{
+  width:260px;
+  flex:0 0 260px;
+  padding:16px 12px;
+  border-right:1px solid var(--color-border);
+  background:var(--color-bg-gray);
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.jx-appLoading-brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:4px 6px 12px;
+}
+.jx-appLoading-skLogo{
+  width:28px;
+  height:28px;
+  border-radius:8px;
+  flex:0 0 auto;
+}
+.jx-appLoading-skBrandText{
+  width:96px;
+  height:14px;
+  border-radius:6px;
+}
+.jx-appLoading-skNewChat{
+  width:100%;
+  height:36px;
+  border-radius:10px;
+}
+.jx-appLoading-navList{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:4px 0;
+}
+.jx-appLoading-skNavItem{
+  width:100%;
+  height:32px;
+  border-radius:8px;
+}
+.jx-appLoading-historyList{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:8px;
+}
+.jx-appLoading-skHistoryGroupTitle{
+  width:56px;
+  height:10px;
+  border-radius:6px;
+  margin:6px 6px 2px;
+}
+.jx-appLoading-skHistoryItem{
+  width:calc(100% - 12px);
+  margin:0 6px;
+  height:32px;
+  border-radius:10px;
+}
+.jx-appLoading-main{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:40px;
+  overflow:hidden;
+}
+.jx-appLoading-center{
+  width:100%;
+  max-width:680px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:18px;
+}
+.jx-appLoading-skTitle{
+  width:240px;
+  height:28px;
+  border-radius:8px;
+}
+.jx-appLoading-skSubtitle{
+  width:320px;
+  height:14px;
+  border-radius:6px;
+}
+.jx-appLoading-skInput{
+  width:100%;
+  height:88px;
+  border-radius:16px;
+  margin-top:8px;
+}
+.jx-appLoading-cards{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:12px;
+  width:100%;
+  margin-top:8px;
+}
+.jx-appLoading-skCard{
+  height:92px;
+  border-radius:12px;
+}
+@media (max-width: 720px){
+  .jx-appLoading-sidebar{
+    display:none;
+  }
+  .jx-appLoading-cards{
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+}
+

@@ -1,0 +1,342 @@
+import type { ReactNode } from 'react';
+import { create } from 'zustand';
+import type { UpdateEntry, UpdateCategory, FileConfirmInfo, DesignPickInfo, UserQuestionRequest } from '../types';
+import type { SearchResultItem } from '../api';
+import { IS_COMMUNITY_EDITION_BUILD } from '../edition';
+import { loadThemeMode, saveThemeMode, type ThemeMode } from '../theme';
+import { writeLocal } from '../storage';
+
+export type HistoryTimeFilter = 'all' | 'today' | '7d' | '30d';
+export type UpdateFilter = '全部' | UpdateCategory;
+
+const DISPATCH_PROCESS_STORAGE_KEY = 'luminos_dispatch_process_visible';
+// A resolved SSE can race with an older pending-GET response already in
+// flight. Keep a small process-local tombstone set so that stale recovery
+// snapshots cannot resurrect a question the server has already settled.
+const resolvedUserQuestionKeys = new Set<string>();
+const MAX_RESOLVED_USER_QUESTION_KEYS = 2048;
+
+function userQuestionKey(chatId: string, requestId: string): string {
+  return `${chatId}\u0000${requestId}`;
+}
+
+function markUserQuestionResolved(chatId: string, requestId: string): void {
+  resolvedUserQuestionKeys.add(userQuestionKey(chatId, requestId));
+  if (resolvedUserQuestionKeys.size <= MAX_RESOLVED_USER_QUESTION_KEYS) return;
+  const oldest = resolvedUserQuestionKeys.values().next().value;
+  if (typeof oldest === 'string') resolvedUserQuestionKeys.delete(oldest);
+}
+
+function wasUserQuestionResolved(chatId: string, requestId: string): boolean {
+  return resolvedUserQuestionKeys.has(userQuestionKey(chatId, requestId));
+}
+
+function loadDispatchProcessVisible(): boolean {
+  if (typeof window === 'undefined') return IS_COMMUNITY_EDITION_BUILD;
+  try {
+    const raw = window.localStorage.getItem(DISPATCH_PROCESS_STORAGE_KEY);
+    return raw == null ? IS_COMMUNITY_EDITION_BUILD : raw !== 'false';
+  } catch {
+    return IS_COMMUNITY_EDITION_BUILD;
+  }
+}
+
+interface UIState {
+  siderCollapsed: boolean;
+
+  // ── Search modal (replaces the old sidebar-embedded search) ──
+  // The only search entry point: the search button / ⌘K triggers openSearchModal; closing resets it.
+  searchModalOpen: boolean;
+  searchKeyword: string;
+  searchResults: SearchResultItem[];
+  searchLoading: boolean;
+
+  // The old "history section" filter dropdown has been removed; these two states are kept for SearchModal's internal use.
+  historyTimeFilter: HistoryTimeFilter;
+  historyTopicFilter: string;
+  editingChatId: string | null;
+  editingTitle: string;
+
+  // ── Image preview ──
+  previewImage: { url: string; name: string } | null;
+
+  // ── Detail modal ──
+  detailModal: { title: string; body: ReactNode } | null;
+
+  // ── Recommend banner ──
+  recommendBarVisible: boolean;
+
+  // ── Docs panel ──
+  activeUpdateFilter: UpdateFilter;
+  featureUpdates: UpdateEntry[];
+
+  // ── Prompt Hub ──
+  promptHubOpen: boolean;
+  dispatchProcessVisible: boolean;
+
+  // ── 主题（深色模式）──
+  // 只存用户档位（system/light/dark）；实际深浅由 AppThemeProvider 结合系统外观解析，
+  // DOM 落地与「跟随系统」监听也在那里，这里只管状态与持久化。
+  themeMode: ThemeMode;
+
+  // ── §13 My Space write confirmation ──
+  // Stores one **FIFO queue** per chatId: a single round of parallel tool calls can concurrently register N distinct
+  // pending confirmations, which must all be queued and popped one by one — click one, the next appears — never overwritten
+  // by later arrivals like the old single-slot model (overwriting would leave the un-popped N-1 tool coroutines stuck forever).
+  pendingConfirm: Record<string, FileConfirmInfo[]>;
+
+  // ── Site-building design three-way choice ──
+  // Stores a **single value** per chatId (one site build pops only one picker; the backend already dedupes the same question).
+  pendingDesignPick: Record<string, DesignPickInfo | undefined>;
+
+  // Model-initiated question requests. Parallel tool calls may enqueue more
+  // than one request, while the resident composer presents them FIFO.
+  pendingUserQuestions: Record<string, UserQuestionRequest[]>;
+
+  // ── Actions ──
+  setSiderCollapsed: (v: boolean) => void;
+  toggleSider: () => void;
+
+  openSearchModal: () => void;
+  closeSearchModal: () => void;
+  setSearchKeyword: (keyword: string) => void;
+  setSearchResults: (results: SearchResultItem[]) => void;
+  setSearchLoading: (v: boolean) => void;
+
+  setHistoryTimeFilter: (filter: HistoryTimeFilter) => void;
+  setHistoryTopicFilter: (topic: string) => void;
+  setEditingChatId: (id: string | null) => void;
+  setEditingTitle: (title: string) => void;
+
+  setRecommendBarVisible: (v: boolean) => void;
+
+  setPreviewImage: (image: { url: string; name: string } | null) => void;
+  setDetailModal: (modal: { title: string; body: ReactNode } | null) => void;
+
+  setActiveUpdateFilter: (filter: UpdateFilter) => void;
+  setFeatureUpdates: (updates: UpdateEntry[]) => void;
+
+  setPromptHubOpen: (v: boolean) => void;
+  setDispatchProcessVisible: (v: boolean) => void;
+
+  setThemeMode: (mode: ThemeMode) => void;
+
+  // Enqueue an item (deduped by confirmId; ignored if already in the queue).
+  enqueuePendingConfirm: (chatId: string, info: FileConfirmInfo) => void;
+  // Dequeue an item (user has decided / the item timed out); delete the chat key when the queue is empty.
+  resolvePendingConfirm: (chatId: string, confirmId: string) => void;
+  // Clear the entire queue for a chat (new send / reset).
+  clearPendingConfirm: (chatId: string) => void;
+  // Replace a chat's entire queue with the backend's authoritative list (restore on refresh/switch-back, order-preserving).
+  hydratePendingConfirmQueue: (chatId: string, infos: FileConfirmInfo[]) => void;
+  // Sidebar blue dot: only ensures a chat with pending confirmations has a non-empty queue, without clobbering an existing fuller queue.
+  hydratePendingConfirms: (list: Array<{ chatId: string; info: FileConfirmInfo }>) => void;
+
+  // Site-building design three-way choice: set/clear the pending picker for the current chat (passing null clears and deletes the key).
+  setPendingDesignPick: (chatId: string, info: DesignPickInfo | null) => void;
+  enqueuePendingUserQuestion: (chatId: string, request: UserQuestionRequest) => void;
+  resolvePendingUserQuestion: (chatId: string, requestId: string) => void;
+  hydratePendingUserQuestionQueue: (chatId: string, requests: UserQuestionRequest[]) => void;
+  hydratePendingUserQuestions: (
+    list: Array<{ chatId: string; request: UserQuestionRequest }>,
+  ) => void;
+}
+
+export const useUIStore = create<UIState>((set) => ({
+  siderCollapsed: false,
+
+  searchModalOpen: false,
+  searchKeyword: '',
+  searchResults: [],
+  searchLoading: false,
+
+  historyTimeFilter: 'all',
+  historyTopicFilter: 'all',
+  editingChatId: null,
+  editingTitle: '',
+
+  recommendBarVisible: true,
+
+  previewImage: null,
+  detailModal: null,
+
+  activeUpdateFilter: '全部',
+  featureUpdates: [],
+
+  promptHubOpen: false,
+  dispatchProcessVisible: loadDispatchProcessVisible(),
+
+  themeMode: loadThemeMode(),
+
+  pendingConfirm: {},
+  pendingDesignPick: {},
+  pendingUserQuestions: {},
+
+  setSiderCollapsed: (v) => set({ siderCollapsed: v }),
+  toggleSider: () => set((s) => ({ siderCollapsed: !s.siderCollapsed })),
+
+  openSearchModal: () => set({ searchModalOpen: true }),
+  // When closing the modal, reset keyword/results/both filters so the next open starts clean.
+  closeSearchModal: () => set({
+    searchModalOpen: false,
+    searchKeyword: '',
+    searchResults: [],
+    searchLoading: false,
+    historyTimeFilter: 'all',
+    historyTopicFilter: 'all',
+  }),
+  setSearchKeyword: (keyword) => set({ searchKeyword: keyword }),
+  setSearchResults: (results) => set({ searchResults: results }),
+  setSearchLoading: (v) => set({ searchLoading: v }),
+
+  setHistoryTimeFilter: (filter) => set({ historyTimeFilter: filter }),
+  setHistoryTopicFilter: (topic) => set({ historyTopicFilter: topic }),
+  setEditingChatId: (id) => set({ editingChatId: id }),
+  setEditingTitle: (title) => set({ editingTitle: title }),
+
+  setRecommendBarVisible: (v) => set({ recommendBarVisible: v }),
+
+  setPreviewImage: (image) => set({ previewImage: image }),
+  setDetailModal: (modal) => set({ detailModal: modal }),
+
+  setActiveUpdateFilter: (filter) => set({ activeUpdateFilter: filter }),
+  setFeatureUpdates: (updates) => set({ featureUpdates: updates }),
+
+  setPromptHubOpen: (v) => set({ promptHubOpen: v }),
+  enqueuePendingConfirm: (chatId, info) =>
+    set((s) => {
+      if (!chatId || !info?.confirmId) return s;
+      const q = s.pendingConfirm[chatId] ?? [];
+      // Dedupe: the same confirm can be delivered repeatedly from multiple sources (SSE events / chat-switch polling /
+      // hydrate). If it's already in the queue, leave it untouched to avoid needless re-renders and duplicate items.
+      if (q.some((x) => x.confirmId === info.confirmId)) return s;
+      return { pendingConfirm: { ...s.pendingConfirm, [chatId]: [...q, info] } };
+    }),
+  resolvePendingConfirm: (chatId, confirmId) =>
+    set((s) => {
+      const q = s.pendingConfirm[chatId];
+      if (!q || !q.some((x) => x.confirmId === confirmId)) return s;
+      const rest = q.filter((x) => x.confirmId !== confirmId);
+      const next = { ...s.pendingConfirm };
+      // An empty queue must delete the key: places like Sidebar use `!!pendingConfirm[id]`, and an empty array is
+      // truthy, so keeping it would wrongly light up the blue dot.
+      if (rest.length) next[chatId] = rest;
+      else delete next[chatId];
+      return { pendingConfirm: next };
+    }),
+  clearPendingConfirm: (chatId) =>
+    set((s) => {
+      if (!s.pendingConfirm[chatId]) return s;
+      const next = { ...s.pendingConfirm };
+      delete next[chatId];
+      return { pendingConfirm: next };
+    }),
+  hydratePendingConfirmQueue: (chatId, infos) =>
+    set((s) => {
+      const cur = s.pendingConfirm[chatId];
+      const clean = (infos || []).filter((x) => x?.confirmId);
+      // The backend is authoritative: order-preserving full replacement. Skip when references are equal (avoids re-rendering on every chat-switch refresh).
+      if (
+        cur && cur.length === clean.length &&
+        cur.every((x, i) => x.confirmId === clean[i].confirmId)
+      ) return s;
+      const next = { ...s.pendingConfirm };
+      if (clean.length) next[chatId] = clean;
+      else delete next[chatId];
+      return { pendingConfirm: next };
+    }),
+  hydratePendingConfirms: (list) =>
+    set((s) => {
+      const next = { ...s.pendingConfirm };
+      let changed = false;
+      for (const { chatId, info } of list) {
+        // Only light up the blue dot: leave an existing (fuller) queue untouched; only insert a placeholder when empty.
+        if (chatId && info?.confirmId && !(next[chatId]?.length)) {
+          next[chatId] = [info];
+          changed = true;
+        }
+      }
+      return changed ? { pendingConfirm: next } : s;
+    }),
+  setPendingDesignPick: (chatId, info) =>
+    set((s) => {
+      if (!chatId) return s;
+      const valid = !!(info && info.confirmId);
+      // Delete the key on empty value (DesignPickerCard/Sidebar rely on key existence); clearing when already empty is a no-op.
+      if (!valid && !s.pendingDesignPick[chatId]) return s;
+      const next = { ...s.pendingDesignPick };
+      if (valid) next[chatId] = info as DesignPickInfo;
+      else delete next[chatId];
+      return { pendingDesignPick: next };
+    }),
+  enqueuePendingUserQuestion: (chatId, request) =>
+    set((s) => {
+      if (!chatId || !request?.requestId || !request.questions.length) return s;
+      if (wasUserQuestionResolved(chatId, request.requestId)) return s;
+      const queue = s.pendingUserQuestions[chatId] ?? [];
+      if (queue.some((item) => item.requestId === request.requestId)) return s;
+      return {
+        pendingUserQuestions: {
+          ...s.pendingUserQuestions,
+          [chatId]: [...queue, request],
+        },
+      };
+    }),
+  resolvePendingUserQuestion: (chatId, requestId) =>
+    set((s) => {
+      if (!chatId || !requestId) return s;
+      markUserQuestionResolved(chatId, requestId);
+      const queue = s.pendingUserQuestions[chatId];
+      if (!queue?.some((item) => item.requestId === requestId)) return s;
+      const remaining = queue.filter((item) => item.requestId !== requestId);
+      const next = { ...s.pendingUserQuestions };
+      if (remaining.length) next[chatId] = remaining;
+      else delete next[chatId];
+      return { pendingUserQuestions: next };
+    }),
+  hydratePendingUserQuestionQueue: (chatId, requests) =>
+    set((s) => {
+      const clean = (requests || []).filter(
+        (request) => request?.requestId && request.questions.length
+          && !wasUserQuestionResolved(chatId, request.requestId),
+      );
+      const current = s.pendingUserQuestions[chatId];
+      if (
+        current && current.length === clean.length
+        && current.every((request, index) => request.requestId === clean[index].requestId)
+      ) return s;
+      const next = { ...s.pendingUserQuestions };
+      if (clean.length) next[chatId] = clean;
+      else delete next[chatId];
+      return { pendingUserQuestions: next };
+    }),
+  hydratePendingUserQuestions: (list) =>
+    set((s) => {
+      const next = { ...s.pendingUserQuestions };
+      let changed = false;
+      for (const { chatId, request } of list) {
+        if (!chatId || !request?.requestId || !request.questions.length) continue;
+        if (wasUserQuestionResolved(chatId, request.requestId)) continue;
+        const queue = next[chatId] ?? [];
+        if (queue.some((item) => item.requestId === request.requestId)) continue;
+        next[chatId] = [...queue, request];
+        changed = true;
+      }
+      return changed ? { pendingUserQuestions: next } : s;
+    }),
+  setDispatchProcessVisible: (v) => {
+    if (typeof window !== 'undefined') {
+      try {
+        writeLocal(DISPATCH_PROCESS_STORAGE_KEY, String(v));
+      } catch {
+        // Keep the in-memory preference usable when browser storage is blocked.
+      }
+    }
+    set({ dispatchProcessVisible: v });
+  },
+
+  setThemeMode: (mode) => {
+    saveThemeMode(mode);
+    set({ themeMode: mode });
+  },
+}));
