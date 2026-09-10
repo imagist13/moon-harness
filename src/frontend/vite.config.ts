@@ -77,6 +77,15 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
         },
+        '/v1': {
+          target: proxyTarget,
+          changeOrigin: true,
+          // 兼容直接调用 /v1/... 的 API 路由（绕过 /api 前缀）
+        },
+        '/v1/auth/sso': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
       },
     },
   }

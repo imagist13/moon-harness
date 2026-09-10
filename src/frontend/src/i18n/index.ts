@@ -1,6 +1,12 @@
 import { IS_COMMUNITY_EDITION_BUILD } from '../edition';
 import { writeLocal } from '../storage';
 
+// 静态导入英文字典（IS_COMMUNITY_EDITION_BUILD = true 时默认语言为 en，字典始终需要）。
+// 注意：原版使用 `await import('./en')` 动态导入，但 Vite 的 top-level await
+// 预构建有时在开发模式下无法正确处理，导致浏览器请求 /src/i18n/en/*.ts 404。
+// 改用静态 import 可消除该问题，且 ~250KB 源码的编译时开销可忽略不计。
+import { EN_DICT } from './en';
+
 /**
  * 轻量 i18n：中文原文作 key，英文字典翻译，缺失回退中文。
  * 语言偏好存 localStorage；切换语言整页 reload，保证模块级常量
@@ -31,13 +37,8 @@ if (typeof document !== 'undefined') {
   document.documentElement.lang = currentLang;
 }
 
-// 英文字典按需加载：中文用户不下载这 ~55KB gz 的字典 chunk。
-// top-level await 保证所有 import 本模块的代码（含模块级 t() 调用）
-// 在字典就绪后才求值。
-let dict: Record<string, string> = {};
-if (currentLang === 'en') {
-  dict = (await import('./en')).EN_DICT;
-}
+// 英文字典已通过静态 import 加载，不再需要按需懒加载。
+const dict: Record<string, string> = currentLang === 'en' ? EN_DICT : {};
 
 export function getLang(): Lang {
   return currentLang;

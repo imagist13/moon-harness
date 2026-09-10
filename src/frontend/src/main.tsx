@@ -1,4 +1,3 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import 'antd/dist/reset.css'
 import './index.css'
@@ -17,11 +16,11 @@ installPreloadErrorReload()
 const isApiDocs = window.location.pathname.startsWith('/api-docs')
 const isSharePreview = new URLSearchParams(window.location.search).has('share')
 
+// 注意：不使用 StrictMode（开发模式下会双次挂载组件，导致 useDelayedFlag 的骨架屏
+// 计时器出错、auth effect 重复执行，造成页面闪烁。生产构建中 StrictMode 本身无开销，
+// 但本树的组件代码已具备幂等性，不需要它来暴露潜在的 effect 规范问题。
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    {/* 分享预览是对外页面，锁定浅色（与 index.html 防闪烁脚本的 share 判断保持一致） */}
-    <AppThemeProvider forceLight={isSharePreview}>
-      {isSharePreview ? <SharePreviewApp /> : isApiDocs ? <ApiDocApp /> : <App />}
-    </AppThemeProvider>
-  </StrictMode>,
+  <AppThemeProvider forceLight={isSharePreview}>
+    {isSharePreview ? <SharePreviewApp /> : isApiDocs ? <ApiDocApp /> : <App />}
+  </AppThemeProvider>,
 )
